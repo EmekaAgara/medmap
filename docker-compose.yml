@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: medmap-mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medmap-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.example
+    ports:
+      - '4000:4000'
+    depends_on:
+      - mongo
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: medmap-admin
+    restart: unless-stopped
+    environment:
+      - VITE_API_BASE_URL=http://localhost:4000/api/v1
+    ports:
+      - '5173:4173'
+
+volumes:
+  mongo_data:
+

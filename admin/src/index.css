@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Light theme (default) ── */
+:root {
+  --nm-bg:        #ffffff;
+  --nm-surface:   #fafafa;
+  --nm-card:      #ffffff;
+  --nm-text:      #111111;
+  --nm-muted:     #6b7280;
+  --nm-border:    #e5e7eb;
+  --nm-primary:   #000000;
+  --nm-pfg:       #ffffff;
+  --nm-secondary: #f4f4f5;
+}
+
+/* ── Dark theme ── */
+.dark {
+  --nm-bg:        #000000;
+  --nm-surface:   #09090b;
+  --nm-card:      #111111;
+  --nm-text:      #fafafa;
+  --nm-muted:     #a1a1aa;
+  --nm-border:    #27272a;
+  --nm-primary:   #ffffff;
+  --nm-pfg:       #000000;
+  --nm-secondary: #18181b;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--nm-bg);
+  color: var(--nm-text);
+  font-family: 'Montserrat', system-ui, sans-serif;
+  margin: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--nm-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--nm-muted); }

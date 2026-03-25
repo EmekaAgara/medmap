@@ -1,6 +1,6 @@
 # MedMap Build Phases
 
-MedMap is a mobile app that helps users quickly find and connect with nearby healthcare providers such as doctors, pharmacies, and hospitals. It uses location data to display nearby options with key details like services offered, distance, availability, and contact information, with options to call or chat instantly.  
+MedMap is a mobile app that helps users quickly find and connect with nearby healthcare providers such as doctors, pharmacies, and hospitals. It uses location data to display nearby options with key details like services offered, distance, availability, and contact information, with options to call or chat instantly.
 
 Healthcare professionals, hospitals, and pharmacies can list their services and products. Users can pay for products and services using Interswitch APIs, store money in an in-app wallet, and use an AI chat assistant with context from medical information such as appointment history and treatment records.
 
@@ -14,6 +14,7 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
   - Hospital Admin
   - Pharmacy Admin
   - Platform Admin
+  - When a user creates an account they can select their role and also complete their profile later
 - Lock core use cases:
   - Find care fast
   - Contact provider immediately
@@ -24,7 +25,7 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 
 ---
 
-## Phase 1: MVP Discovery + Fast Contact (4-6 weeks)
+## Phase 1: MVP Discovery + Fast Contact
 
 **Goal:** users can find and contact relevant providers quickly.
 
@@ -50,7 +51,7 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 
 ---
 
-## Phase 2: Chat, Scheduling, and Urgent Access (4-8 weeks)
+## Phase 2: Chat, Scheduling, and Urgent Access
 
 **Goal:** convert discovery into real care interactions.
 
@@ -180,4 +181,3 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 4. Phase 4 (pharmacy commerce)
 5. Phase 5 (AI + longitudinal care)
 6. Phase 6 (scale and ecosystem integrations)
-
