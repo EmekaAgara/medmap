@@ -29,6 +29,10 @@ import {
   brand,
 } from "../../../../theme/tokens";
 import { apiRequest, apiUpload } from "../../../../src/api/client";
+import QuickActionsGrid from "../../../components/QuickActionsGrid";
+import ScreenHeader from "../../../components/ScreenHeader";
+import { ShimmerAvatar, ShimmerBlock, ShimmerText } from "../../../components/Shimmer";
+import { hapticTap, hapticToggle } from "../../../../src/utils/haptics";
 
 export default function ProfileScreen() {
   const { token, updateUser, signOut } = useAuth();
@@ -84,6 +88,32 @@ export default function ProfileScreen() {
       .join("")
       .slice(0, 2)
       .toUpperCase() || "?";
+
+  const quickActions = (() => {
+    const acct = profile?.accountType || "patient";
+    if (acct === "patient") {
+      return [
+        { key: "edit", label: "Edit", icon: "pencil-outline", onPress: () => router.push("/(app)/profile-edit") },
+        { key: "wallet", label: "Wallet", icon: "wallet-outline", onPress: () => router.push("/(app)/wallet") },
+        { key: "orders", label: "Orders", icon: "bag-outline", onPress: () => router.push("/(app)/orders") },
+        { key: "appts", label: "Appts", icon: "calendar-outline", onPress: () => router.push("/(app)/appointments") },
+        { key: "timeline", label: "Timeline", icon: "pulse-outline", onPress: () => router.push("/(app)/medical-timeline") },
+        { key: "medical", label: "Medical", icon: "clipboard-outline", onPress: () => router.push("/(app)/medical-profile") },
+        { key: "security", label: "Security", icon: "shield-outline", onPress: () => router.push("/(app)/security") },
+        { key: "alerts", label: "Alerts", icon: "notifications-outline", onPress: () => router.push("/(tabs)/notifications") },
+      ];
+    }
+    return [
+      { key: "edit", label: "Edit", icon: "pencil-outline", onPress: () => router.push("/(app)/profile-edit") },
+      { key: "wallet", label: "Wallet", icon: "wallet-outline", onPress: () => router.push("/(app)/wallet") },
+      { key: "listing", label: "Listing", icon: "briefcase-outline", onPress: () => router.push("/(app)/provider-listing") },
+      { key: "requests", label: "Requests", icon: "calendar-outline", onPress: () => router.push("/(app)/provider-appointments") },
+      { key: "sales", label: "Sales", icon: "bag-outline", onPress: () => router.push("/(app)/provider-orders") },
+      { key: "catalog", label: "Catalog", icon: "pricetags-outline", onPress: () => router.push("/(app)/provider-catalog") },
+      { key: "security", label: "Security", icon: "shield-outline", onPress: () => router.push("/(app)/security") },
+      { key: "alerts", label: "Alerts", icon: "notifications-outline", onPress: () => router.push("/(tabs)/notifications") },
+    ];
+  })();
 
   const openDropdown = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -203,14 +233,22 @@ export default function ProfileScreen() {
       style={{ flex: 1, backgroundColor: theme.background }}
       edges={["top"]}
     >
+      <ScreenHeader title="Profile" showBack={false} />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: spacing["3xl"] }}
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator color={theme.primary} />
+          <View style={[styles.loadingBox, { paddingHorizontal: layout.screenPaddingHorizontal }]}>
+            <View style={[ui.card(theme), { alignItems: "center", padding: spacing.lg, width: "100%" }]}>
+              <ShimmerAvatar theme={theme} size={88} />
+              <ShimmerBlock theme={theme} style={{ height: 18, width: "42%", marginTop: spacing.md }} />
+              <ShimmerBlock theme={theme} style={{ height: 12, width: "65%", marginTop: spacing.xs }} />
+              <View style={{ width: "100%", marginTop: spacing.lg }}>
+                <ShimmerText theme={theme} lines={3} />
+              </View>
+            </View>
           </View>
         ) : (
           <>
@@ -380,146 +418,9 @@ export default function ProfileScreen() {
                 );
               })()}
 
-              <TouchableOpacity
-                style={[styles.editBtn, { borderColor: theme.border }]}
-                onPress={() => router.push("/(app)/profile-edit")}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="pencil-outline" size={14} color={theme.text} />
-                <Text style={[styles.editBtnText, { color: theme.text }]}>
-                  Edit profile
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.editBtn,
-                  { borderColor: theme.border, marginTop: spacing.sm },
-                ]}
-                onPress={() => router.push("/(app)/wallet")}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="wallet-outline" size={14} color={theme.text} />
-                <Text style={[styles.editBtnText, { color: theme.text }]}>
-                  MedMap wallet
-                </Text>
-              </TouchableOpacity>
-              {profile?.accountType && profile.accountType !== "patient" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.editBtn,
-                    { borderColor: theme.border, marginTop: spacing.sm },
-                  ]}
-                  onPress={() => router.push("/(app)/provider-listing")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="briefcase-outline"
-                    size={14}
-                    color={theme.text}
-                  />
-                  <Text style={[styles.editBtnText, { color: theme.text }]}>
-                    Manage provider listing
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {profile?.accountType === "patient" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.editBtn,
-                    { borderColor: theme.border, marginTop: spacing.sm },
-                  ]}
-                  onPress={() => router.push("/(app)/appointments")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={14}
-                    color={theme.text}
-                  />
-                  <Text style={[styles.editBtnText, { color: theme.text }]}>
-                    My appointments
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {profile?.accountType === "patient" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.editBtn,
-                    { borderColor: theme.border, marginTop: spacing.sm },
-                  ]}
-                  onPress={() => router.push("/(app)/orders")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="bag-outline" size={14} color={theme.text} />
-                  <Text style={[styles.editBtnText, { color: theme.text }]}>
-                    My orders
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {profile?.accountType === "patient" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.editBtn,
-                    { borderColor: theme.border, marginTop: spacing.sm },
-                  ]}
-                  onPress={() => router.push("/(app)/medical-timeline")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="pulse-outline" size={14} color={theme.text} />
-                  <Text style={[styles.editBtnText, { color: theme.text }]}>
-                    Medical timeline
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {profile?.accountType === "patient" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.editBtn,
-                    { borderColor: theme.border, marginTop: spacing.sm },
-                  ]}
-                  onPress={() => router.push("/(app)/medical-profile")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="clipboard-outline" size={14} color={theme.text} />
-                  <Text style={[styles.editBtnText, { color: theme.text }]}>
-                    Medical profile
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {profile?.accountType && profile.accountType !== "patient" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.editBtn,
-                    { borderColor: theme.border, marginTop: spacing.sm },
-                  ]}
-                  onPress={() => router.push("/(app)/provider-appointments")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="calendar-outline"
-                    size={14}
-                    color={theme.text}
-                  />
-                  <Text style={[styles.editBtnText, { color: theme.text }]}>
-                    Appointment requests
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-              {profile?.accountType && profile.accountType !== "patient" ? (
-                <TouchableOpacity
-                  style={[
-                    styles.editBtn,
-                    { borderColor: theme.border, marginTop: spacing.sm },
-                  ]}
-                  onPress={() => router.push("/(app)/provider-orders")}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="bag-outline" size={14} color={theme.text} />
-                  <Text style={[styles.editBtnText, { color: theme.text }]}>
-                    Sales & orders
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
+              <View style={{ marginTop: spacing.md }}>
+                <QuickActionsGrid actions={quickActions} theme={theme} />
+              </View>
             </View>
 
             {/* ── Incomplete profile warning ── */}
@@ -689,7 +590,10 @@ export default function ProfileScreen() {
                   right={
                     <Switch
                       value={isDark}
-                      onValueChange={toggleTheme}
+                      onValueChange={() => {
+                        hapticToggle();
+                        toggleTheme();
+                      }}
                       trackColor={{ false: theme.border, true: theme.primary }}
                       thumbColor={theme.primaryForeground}
                       style={{
@@ -747,10 +651,13 @@ export default function ProfileScreen() {
                     <Switch
                       value={true}
                       onValueChange={() =>
-                        Alert.alert(
-                          "Coming soon",
-                          "Notification preferences will be available soon.",
-                        )
+                        {
+                          hapticToggle();
+                          Alert.alert(
+                            "Coming soon",
+                            "Notification preferences will be available soon.",
+                          );
+                        }
                       }
                       trackColor={{ false: theme.border, true: theme.primary }}
                       thumbColor={theme.primaryForeground}
@@ -1124,7 +1031,13 @@ function SettingsRow({
 
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity
+        onPress={() => {
+          hapticTap();
+          onPress?.();
+        }}
+        activeOpacity={0.7}
+      >
         {content}
       </TouchableOpacity>
     );

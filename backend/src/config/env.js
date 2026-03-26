@@ -54,6 +54,10 @@ const env = {
 
   meddie: {
     enabled: process.env.MEDDIE_ENABLED !== 'false',
+    // Prefer Gemini (Google AI Studio) if configured.
+    geminiApiKey: process.env.GEMINI_API_KEY || process.env.MEDDIE_GEMINI_API_KEY || '',
+    geminiModel: process.env.MEDDIE_GEMINI_MODEL || 'gemini-3-flash-preview',
+    // Optional OpenAI-compatible fallback.
     openaiApiKey: process.env.MEDDIE_OPENAI_API_KEY || '',
     openaiBaseUrl: process.env.MEDDIE_OPENAI_BASE_URL || 'https://api.openai.com/v1',
     openaiModel: process.env.MEDDIE_OPENAI_MODEL || 'gpt-4o-mini',

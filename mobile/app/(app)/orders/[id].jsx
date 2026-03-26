@@ -15,6 +15,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
 import { beginInAppCheckout } from '../../../src/wallet/checkoutSession';
 import { ui, spacing } from '../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../components/Shimmer';
 
 function statusLabel(s) {
   if (s === 'pending_payment') return 'Awaiting payment';
@@ -150,7 +151,11 @@ export default function OrderDetailScreen() {
     return (
       <SafeAreaView style={ui.screen(theme)} edges={['top']}>
         <ScreenHeader title="Order" onBack={() => router.back()} />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
+        <View style={{ gap: spacing.md }}>
+          <ShimmerBlock theme={theme} style={{ height: 22, width: '42%' }} />
+          <ShimmerText theme={theme} lines={3} />
+          <ShimmerBlock theme={theme} style={{ height: 140, borderRadius: 12 }} />
+        </View>
       </SafeAreaView>
     );
   }

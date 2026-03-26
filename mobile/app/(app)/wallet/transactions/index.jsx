@@ -13,6 +13,7 @@ import { useAuth, useThemeMode } from '../../../_layout';
 import ScreenHeader from '../../../components/ScreenHeader';
 import { apiRequest } from '../../../../src/api/client';
 import { ui, spacing, typography } from '../../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../../components/Shimmer';
 
 function txLabel(t) {
   const map = {
@@ -82,7 +83,14 @@ export default function WalletTransactionsScreen() {
     return (
       <SafeAreaView style={ui.screen(theme)} edges={['top']}>
         <ScreenHeader title="History" onBack={() => router.back()} />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
+        <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <View key={`wallet-history-shimmer-${idx}`} style={[ui.card(theme), { padding: spacing.md }]}>
+              <ShimmerBlock theme={theme} style={{ height: 14, width: '42%', marginBottom: spacing.xs }} />
+              <ShimmerText theme={theme} lines={2} />
+            </View>
+          ))}
+        </View>
       </SafeAreaView>
     );
   }

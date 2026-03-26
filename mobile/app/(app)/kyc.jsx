@@ -17,6 +17,7 @@ import { useThemeMode, useAuth } from '../_layout';
 import ScreenHeader from '../components/ScreenHeader';
 import { ui, spacing, typography, radii, layout, brand } from '../../theme/tokens';
 import { apiRequest, apiUpload } from '../../src/api/client';
+import { ShimmerBlock, ShimmerText } from '../components/Shimmer';
 
 const GOLD = brand.gold;
 
@@ -222,8 +223,10 @@ export default function KycScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }} edges={['top', 'bottom']}>
         <ScreenHeader title="Identity Verification" />
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator color={theme.primary} />
+        <View style={{ flex: 1, paddingHorizontal: layout.screenPaddingHorizontal, paddingTop: spacing.lg, gap: spacing.md }}>
+          <ShimmerBlock theme={theme} style={{ height: 90, borderRadius: radii.xs }} />
+          <ShimmerText theme={theme} lines={3} />
+          <ShimmerBlock theme={theme} style={{ height: 48, borderRadius: radii.xs }} />
         </View>
       </SafeAreaView>
     );

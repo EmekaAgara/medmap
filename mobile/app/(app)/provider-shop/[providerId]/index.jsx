@@ -16,6 +16,7 @@ import { apiRequest } from '../../../../src/api/client';
 import { normalizeCatalogProducts } from '../../../../src/utils/catalog';
 import { ui, spacing, radii } from '../../../../theme/tokens';
 import { getCart } from '../../../../src/cart/cartStore';
+import { ShimmerAvatar, ShimmerBlock, ShimmerText } from '../../../components/Shimmer';
 
 export default function ProviderShopScreen() {
   const { providerId } = useLocalSearchParams();
@@ -67,7 +68,16 @@ export default function ProviderShopScreen() {
     return (
       <SafeAreaView style={[ui.screen(theme), { flex: 1 }]} edges={['top']}>
         <ScreenHeader title="Shop" onBack={() => router.back()} />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.xl }} />
+        <View style={{ gap: spacing.md }}>
+          <View style={[ui.card(theme), { padding: spacing.md, flexDirection: 'row', gap: spacing.md, alignItems: 'center' }]}>
+            <ShimmerAvatar theme={theme} size={56} />
+            <View style={{ flex: 1 }}>
+              <ShimmerBlock theme={theme} style={{ height: 14, width: '55%', marginBottom: spacing.xs }} />
+              <ShimmerText theme={theme} lines={2} />
+            </View>
+          </View>
+          <ShimmerBlock theme={theme} style={{ height: 160, borderRadius: radii.lg }} />
+        </View>
       </SafeAreaView>
     );
   }

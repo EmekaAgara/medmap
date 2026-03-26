@@ -1,19 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import { View, Text, TouchableOpacity, ActivityIndicator, Switch, Alert, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useAuth, useThemeMode } from '../../../_layout';
 import { apiRequest } from '../../../../src/api/client';
-import { ui, spacing } from '../../../../theme/tokens';
+import { ui, spacing, radii } from '../../../../theme/tokens';
 import { Ionicons } from '@expo/vector-icons';
+import { hapticTap, hapticToggle } from '../../../../src/utils/haptics';
 
 const providerTypes = [
   { value: '', label: 'All' },
   { value: 'doctor', label: 'Doctors' },
   { value: 'pharmacy', label: 'Pharmacies' },
   { value: 'hospital', label: 'Hospitals' },
+];
+
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#1f2937' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#d1d5db' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#111827' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#9ca3af' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#374151' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1f2937' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#e5e7eb' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0f172a' }] },
 ];
 
 export default function ExploreScreen() {
@@ -29,6 +41,13 @@ export default function ExploreScreen() {
   const [error, setError] = useState('');
   const [userCoords, setUserCoords] = useState(null);
   const [radiusKm] = useState(50000);
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const etaFromKm = (km) => {
+    const n = Number(km);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(1, Math.round(n * 2));
+  };
 
   const fetchProviders = useCallback(async () => {
     try {
@@ -88,43 +107,76 @@ export default function ExploreScreen() {
   }, [userCoords]);
 
   return (
-    <SafeAreaView style={ui.screen(theme)} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={styles.container(theme)}>
         {loading ? <ActivityIndicator color={theme.primary} style={styles.loadingOverlay} /> : null}
         {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
 
-        <MapView style={styles.map(theme)} initialRegion={initialRegion}>
+        <MapView
+          style={styles.map(theme)}
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+          initialRegion={initialRegion}
+          customMapStyle={theme.mode === 'dark' ? DARK_MAP_STYLE : []}
+          userInterfaceStyle={theme.mode === 'dark' ? 'dark' : 'light'}
+        >
           {userCoords ? (
             <Marker coordinate={userCoords} title="You" pinColor={theme.primary} />
           ) : null}
-          {providers.map((p) => (
-            <Marker
-              key={p._id}
-              coordinate={{
-                latitude: p.location?.coordinates?.[1] ?? 0,
-                longitude: p.location?.coordinates?.[0] ?? 0,
-              }}
-              title={p.name}
-              description={`${p.providerType} • ${p.city || ''}`}
-              onPress={() => {
-                router.push({
-                  pathname: '/(app)/provider-details/[id]',
-                  params: { id: String(p._id) },
-                });
-              }}
-            />
-          ))}
+          {providers.map((p) => {
+            const km = p.distanceKm != null ? Number(p.distanceKm) : null;
+            const eta = etaFromKm(km);
+            const metaLine = [
+              p.providerType || '',
+              p.city || '',
+              Number.isFinite(km) ? `${km}km` : '',
+              Number.isFinite(eta) ? `ETA ${eta}m` : '',
+            ]
+              .filter(Boolean)
+              .join(' • ');
+            return (
+              <Marker
+                key={p._id}
+                coordinate={{
+                  latitude: p.location?.coordinates?.[1] ?? 0,
+                  longitude: p.location?.coordinates?.[0] ?? 0,
+                }}
+                onPress={() => {
+                  hapticTap();
+                }}
+              >
+                <Callout
+                  tooltip
+                  onPress={() => {
+                    hapticTap();
+                    router.push({
+                      pathname: '/(app)/provider-details/[id]',
+                      params: { id: String(p._id) },
+                    });
+                  }}
+                >
+                  <View style={[styles.calloutCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                    <Text style={[styles.calloutTitle, { color: theme.text }]}>{p.name}</Text>
+                    <Text style={[styles.calloutMeta, { color: theme.subtleText }]}>{metaLine || 'Provider'}</Text>
+                  </View>
+                </Callout>
+              </Marker>
+            );
+          })}
         </MapView>
 
         <View style={[styles.topOverlay, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.topRow}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={10}>
+            <TouchableOpacity
+              style={[styles.backBtn, { borderColor: theme.border, backgroundColor: theme.secondary }]}
+              onPress={() => {
+                hapticTap();
+                router.back();
+              }}
+              hitSlop={10}
+            >
               <Ionicons name="chevron-back" size={22} color={theme.text} />
             </TouchableOpacity>
             <View style={styles.brandRow}>
-              <View style={[styles.brandIconWrap, { borderColor: theme.border }]}>
-                <Ionicons name="medkit-outline" size={18} color={theme.primary} />
-              </View>
               <Text style={[ui.h2(theme), { fontSize: 18, fontWeight: '800' }]}>MedMap</Text>
             </View>
           </View>
@@ -135,42 +187,63 @@ export default function ExploreScreen() {
             placeholderTextColor={theme.subtleText}
             style={[ui.input(theme), styles.searchBar]}
           />
-        </View>
-
-        <View style={[styles.controlsOverlay, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.rowBetween}>
             <Text style={{ color: theme.text }}>Open now only</Text>
+            <View style={styles.filterWrap}>
+              <TouchableOpacity
+                style={[styles.filterDropdownBtn, { borderColor: theme.border, backgroundColor: theme.secondary }]}
+                onPress={() => {
+                  hapticTap();
+                  setFilterOpen((v) => !v);
+                }}
+                activeOpacity={0.9}
+              >
+                <Text style={{ color: theme.text, fontSize: 12 }}>
+                  {providerTypes.find((p) => p.value === type)?.label || 'All'}
+                </Text>
+                <Ionicons
+                  name={filterOpen ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color={theme.subtleText}
+                />
+              </TouchableOpacity>
+              {filterOpen ? (
+                <View style={[styles.filterMenu, { borderColor: theme.border, backgroundColor: theme.card }]}>
+                  {providerTypes.map((item) => {
+                    const active = type === item.value;
+                    return (
+                      <TouchableOpacity
+                        key={item.value || 'all'}
+                        onPress={() => {
+                          hapticTap();
+                          setType(item.value);
+                          setFilterOpen(false);
+                        }}
+                        style={[styles.filterMenuItem, active ? { backgroundColor: theme.primary + '12' } : null]}
+                      >
+                        <Text style={{ color: active ? theme.text : theme.subtleText, fontWeight: active ? '700' : '500' }}>
+                          {item.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
+            </View>
             <Switch
               value={openNowOnly}
-              onValueChange={(v) => setOpenNowOnly(v)}
+              onValueChange={(v) => {
+                hapticToggle();
+                setOpenNowOnly(v);
+              }}
               trackColor={{ false: theme.border, true: theme.primary + '88' }}
               thumbColor={openNowOnly ? theme.primary : theme.subtleText}
             />
           </View>
 
-          <View style={styles.typeRow}>
-            {providerTypes.map((item) => {
-              const active = type === item.value;
-              return (
-                <TouchableOpacity
-                  key={item.value || 'all'}
-                  onPress={() => setType(item.value)}
-                  style={[
-                    styles.typeChip,
-                    {
-                      borderColor: active ? theme.primary : theme.border,
-                      backgroundColor: active ? theme.primary + '22' : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={{ color: active ? theme.text : theme.subtleText }}>{item.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -188,52 +261,75 @@ const styles = {
     left: 0,
     right: 0,
   },
-  controlsOverlay: {
-    position: 'absolute',
-    top: 120,
-    left: spacing.lg,
-    right: spacing.lg,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: spacing.sm,
-    gap: spacing.sm,
-  },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  typeChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
   topOverlay: {
     position: 'absolute',
-    top: spacing.sm,
+    top: Platform.OS === 'ios' ? spacing['3xl'] + spacing.md : spacing['3xl'],
     left: spacing.lg,
     right: spacing.lg,
     zIndex: 10,
-    gap: spacing.sm,
+    gap: spacing.md,
     borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
   },
   topRow: { flexDirection: 'row', justifyContent: 'flex-start' },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginLeft: spacing.sm },
-  brandIconWrap: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', marginLeft: spacing.sm, justifyContent: 'center' },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: radii.pill,
   },
   searchBar: {
-    height: 44,
+    height: 48,
     paddingVertical: 10,
   },
+  filterDropdownBtn: {
+    marginLeft: 'auto',
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minWidth: 108,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  filterWrap: {
+    marginLeft: 'auto',
+    position: 'relative',
+  },
+  filterMenu: {
+    position: 'absolute',
+    top: 44,
+    right: 0,
+    width: 160,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.xs,
+    zIndex: 30,
+  },
+  filterMenuItem: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.sm,
+  },
+  calloutCard: {
+    minWidth: 200,
+    maxWidth: 260,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.sm,
+    gap: spacing.xs,
+  },
+  calloutTitle: { fontWeight: '700', fontSize: 13 },
+  calloutMeta: { fontSize: 11 },
 };
 

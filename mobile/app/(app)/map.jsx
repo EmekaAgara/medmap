@@ -7,6 +7,8 @@ import { useAuth, useThemeMode } from '../_layout';
 import ScreenHeader from '../components/ScreenHeader';
 import { apiRequest } from '../../src/api/client';
 import { ui, spacing } from '../../theme/tokens';
+import { ShimmerBlock } from '../components/Shimmer';
+import { hapticTap, hapticToggle } from '../../src/utils/haptics';
 
 const RADIUS_OPTIONS = [5, 10, 25, 50];
 
@@ -98,7 +100,10 @@ export default function MapScreen() {
             <Text style={{ color: theme.text }}>Open now only</Text>
             <Switch
               value={openNowOnly}
-              onValueChange={setOpenNowOnly}
+              onValueChange={(v) => {
+                hapticToggle();
+                setOpenNowOnly(v);
+              }}
               trackColor={{ false: theme.border, true: theme.primary + '88' }}
               thumbColor={openNowOnly ? theme.primary : theme.subtleText}
             />
@@ -110,7 +115,10 @@ export default function MapScreen() {
               return (
                 <TouchableOpacity
                   key={item.value || 'all'}
-                  onPress={() => setType(item.value)}
+                  onPress={() => {
+                    hapticTap();
+                    setType(item.value);
+                  }}
                   style={{
                     borderWidth: 1,
                     borderRadius: 999,
@@ -132,7 +140,10 @@ export default function MapScreen() {
               return (
                 <TouchableOpacity
                   key={km}
-                  onPress={() => setRadiusKm(km)}
+                  onPress={() => {
+                    hapticTap();
+                    setRadiusKm(km);
+                  }}
                   style={{
                     borderWidth: 1,
                     borderRadius: 999,
@@ -149,7 +160,7 @@ export default function MapScreen() {
           </ScrollView>
         </View>
 
-        {loading ? <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.md }} /> : null}
+        {loading ? <ShimmerBlock theme={theme} style={{ height: 42, borderRadius: 10, marginTop: spacing.md }} /> : null}
         {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
 
         <View style={{ height: 420, borderRadius: 12, overflow: 'hidden', marginBottom: spacing.md, borderWidth: 1, borderColor: theme.border }}>

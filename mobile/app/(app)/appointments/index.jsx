@@ -6,6 +6,7 @@ import { useAuth, useThemeMode } from '../../_layout';
 import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
 import { ui, spacing } from '../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../components/Shimmer';
 
 function statusLabel(s) {
   if (s === 'pending') return 'Awaiting provider';
@@ -46,7 +47,16 @@ export default function MyAppointmentsScreen() {
     <SafeAreaView style={ui.screen(theme)} edges={['top']}>
       <ScreenHeader title="My appointments" />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing['2xl'] }}>
-        {loading ? <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.md }} /> : null}
+        {loading ? (
+          <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <View key={`appt-shimmer-${idx}`} style={[ui.card(theme), { padding: spacing.md }]}>
+                <ShimmerBlock theme={theme} style={{ height: 14, width: '45%', marginBottom: spacing.xs }} />
+                <ShimmerText theme={theme} lines={2} />
+              </View>
+            ))}
+          </View>
+        ) : null}
         {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
         {!loading && items.length === 0 ? (
           <Text style={[ui.caption(theme), { marginTop: spacing.md }]}>No appointments yet.</Text>

@@ -21,6 +21,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { apiRequest, apiUpload } from '../../src/api/client';
 import { ui, spacing, radii } from '../../theme/tokens';
 import { normalizeCatalogProducts } from '../../src/utils/catalog';
+import { ShimmerBlock, ShimmerText } from '../components/Shimmer';
 
 const PROVIDER_TYPES = [
   { value: 'doctor', label: 'Doctor' },
@@ -467,7 +468,17 @@ export default function ProviderListingScreen() {
     <SafeAreaView style={ui.screen(theme)} edges={['top']}>
       <ScreenHeader title="Provider listing" />
       <ScrollView contentContainerStyle={{ paddingBottom: spacing['2xl'] }}>
-        {loading ? <ActivityIndicator color={theme.primary} /> : null}
+        {loading ? (
+          <View style={{ gap: spacing.md }}>
+            <ShimmerBlock theme={theme} style={{ height: 120, borderRadius: radii.lg }} />
+            <View style={[ui.card(theme), { padding: spacing.md }]}>
+              <ShimmerText theme={theme} lines={3} />
+            </View>
+            <View style={[ui.card(theme), { padding: spacing.md }]}>
+              <ShimmerText theme={theme} lines={3} />
+            </View>
+          </View>
+        ) : null}
         {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
 
         {moderationStatus ? (

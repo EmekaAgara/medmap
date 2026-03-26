@@ -6,6 +6,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { useAuth, useThemeMode } from '../_layout';
 import { apiRequest } from '../../src/api/client';
 import { ui, spacing, radii, typography } from '../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../components/Shimmer';
 
 function asNumber(v, fallback = 0) {
   const n = Number(String(v).replace(/,/g, '').trim());
@@ -96,7 +97,14 @@ export default function ProviderCatalogScreen() {
     return (
       <SafeAreaView style={ui.screen(theme)} edges={['top']}>
         <ScreenHeader title="Catalog" onBack={() => router.back()} />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
+        <View style={{ gap: spacing.md }}>
+          <ShimmerBlock theme={theme} style={{ height: 46, borderRadius: radii.lg }} />
+          {Array.from({ length: 2 }).map((_, idx) => (
+            <View key={`catalog-shimmer-${idx}`} style={[ui.card(theme), { padding: spacing.md }]}>
+              <ShimmerText theme={theme} lines={3} />
+            </View>
+          ))}
+        </View>
       </SafeAreaView>
     );
   }

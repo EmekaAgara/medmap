@@ -6,6 +6,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import { useAuth, useThemeMode } from '../_layout';
 import { apiRequest } from '../../src/api/client';
 import { ui, spacing, typography } from '../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../components/Shimmer';
 
 function labelStatus(s) {
   const map = {
@@ -51,7 +52,13 @@ export default function MedicalTimelineScreen() {
     <SafeAreaView style={ui.screen(theme)} edges={['top']}>
       <ScreenHeader title="Medical timeline" onBack={() => router.back()} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing['3xl'] }}>
-        {loading ? <ActivityIndicator color={theme.primary} /> : null}
+        {loading ? (
+          <View style={{ gap: spacing.md }}>
+            <ShimmerBlock theme={theme} style={{ height: 100, borderRadius: 12 }} />
+            <ShimmerBlock theme={theme} style={{ height: 120, borderRadius: 12 }} />
+            <ShimmerText theme={theme} lines={3} />
+          </View>
+        ) : null}
         {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
 
         {profile ? (

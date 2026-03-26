@@ -30,6 +30,43 @@ function profileToText(profile) {
   return lines.join('\n');
 }
 
+async function callGeminiGenerateContent({ prompt }) {
+  const apiKey = env.meddie?.geminiApiKey || '';
+  const model = env.meddie?.geminiModel || 'gemini-3-flash-preview';
+  if (!apiKey) {
+    return {
+      ok: false,
+      content:
+        "Meddie AI is not configured yet. Please add your Google AI Studio key (GEMINI_API_KEY) on the server.",
+    };
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model
+  )}:generateContent`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: String(prompt || '').slice(0, 30000) }] }],
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    logger.error('Meddie Gemini error', { status: res.status, data });
+    return { ok: false, content: data?.error?.message || 'Gemini request failed' };
+  }
+
+  const text =
+    data?.candidates?.[0]?.content?.parts?.map((p) => p?.text).filter(Boolean).join('') || '';
+  return { ok: true, content: String(text).trim() };
+}
+
 async function callOpenAiCompatibleChat({ messages }) {
   const apiKey = env.meddie?.openaiApiKey || '';
   const baseUrl = String(env.meddie?.openaiBaseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
@@ -86,16 +123,22 @@ async function generateMeddieReply({ userMessage, medicalProfile, recentTimeline
       (timelineText ? `\n\nRecent timeline:\n${timelineText}` : ''),
   });
 
-  const messages = [
-    { role: 'system', content: system },
-    { role: 'user', content: String(userMessage || '').slice(0, 4000) },
-  ];
+  const userText = String(userMessage || '').slice(0, 4000);
 
   // Use global fetch (Node 18+), fallback to node-fetch v2 if needed.
   const f = global.fetch || require('node-fetch');
   global.fetch = f;
 
-  const r = await callOpenAiCompatibleChat({ messages });
+  // Prefer Gemini when configured; otherwise fall back to OpenAI-compatible (optional).
+  const geminiKey = env.meddie?.geminiApiKey;
+  const r = geminiKey
+    ? await callGeminiGenerateContent({ prompt: `${system}\n\nUser:\n${userText}` })
+    : await callOpenAiCompatibleChat({
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userText },
+        ],
+      });
   if (r.ok && r.content) return r.content;
 
   return (

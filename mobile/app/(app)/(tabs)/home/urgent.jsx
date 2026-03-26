@@ -14,6 +14,7 @@ import { useThemeMode, useAuth } from '../../../_layout';
 import { apiRequest } from '../../../../src/api/client';
 import { ui, spacing } from '../../../../theme/tokens';
 import ScreenHeader from '../../../components/ScreenHeader';
+import { ShimmerBlock, ShimmerText } from '../../../components/Shimmer';
 
 /**
  * Urgent care: open-now providers first, distance when location on, oversized call actions.
@@ -130,7 +131,16 @@ export default function UrgentCareScreen() {
         </Text>
       </TouchableOpacity>
 
-      {loading ? <ActivityIndicator color={theme.primary} /> : null}
+      {loading ? (
+        <View style={{ gap: spacing.sm }}>
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <View key={`urgent-shimmer-${idx}`} style={[ui.card(theme), { padding: spacing.md }]}>
+              <ShimmerBlock theme={theme} style={{ height: 14, width: '48%', marginBottom: spacing.xs }} />
+              <ShimmerText theme={theme} lines={2} />
+            </View>
+          ))}
+        </View>
+      ) : null}
       {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
 
       {!loading && providers.length === 0 ? (

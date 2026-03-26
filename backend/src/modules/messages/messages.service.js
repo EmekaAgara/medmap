@@ -39,7 +39,7 @@ async function getOrCreateMeddieUser() {
     email,
     phone: `MEDDIE_${Date.now()}`,
     passwordHash: 'meddie',
-    fullName: 'Meddie',
+    fullName: 'Meddie AI',
     accountType: 'doctor',
     roles: ['user'],
   });
@@ -106,19 +106,22 @@ async function sendToProvider({ senderUserId, providerId, body }) {
 
   const payload = serializeMessage(message);
   emitToConversation(conversationId, 'message:new', { message: payload });
+  const sender = await User.findById(senderUserId).select('fullName').lean();
+  const senderName = sender?.fullName || 'Someone';
+  const preview = text.length > 100 ? `${text.slice(0, 97)}...` : text;
   await notifyUserPush({
     userId: provider.ownerUser,
-    title: 'New message',
-    body: text.length > 100 ? `${text.slice(0, 97)}...` : text,
-    data: { type: 'message', conversationId },
+    title: `New message from ${senderName}`,
+    body: preview,
+    data: { type: 'message', conversationId, senderName },
   });
 
   await notificationsService.createNotification({
     userId: provider.ownerUser,
     type: 'message',
-    title: 'New message',
-    body: text.length > 100 ? `${text.slice(0, 97)}...` : text,
-    data: { conversationId },
+    title: `New message from ${senderName}`,
+    body: preview,
+    data: { conversationId, senderName },
   });
 
   return { message, conversationId };
@@ -135,7 +138,7 @@ async function startMeddieConversation(userId) {
       from: meddie._id,
       to: userId,
       body:
-        "Hi, I’m Meddie. I can help you understand symptoms and next steps. I’m not a doctor and I can’t diagnose. If you enable AI consent in your Medical Profile, I can use your medical context (allergies, medications, history) to help.",
+        "Hi, I’m Meddie AI. Tell me what’s going on and I’ll help you decide next steps. If it feels urgent, seek emergency care.",
     });
     emitToConversation(conversationId, 'message:new', { message: serializeMessage(greeting) });
   }
@@ -160,18 +163,29 @@ async function listMyConversations(userId) {
     rows.map(async (row) => {
       const latest = row.latest;
       const peerUserId = String(latest.from) === String(userId) ? latest.to : latest.from;
-      const peer = await User.findById(peerUserId).select('fullName').lean();
+      const peer = await User.findById(peerUserId).select('fullName email avatarUrl').lean();
       let provider = null;
       if (latest.provider) {
-        provider = await Provider.findById(latest.provider).select('name providerType').lean();
+        provider = await Provider.findById(latest.provider).select('name providerType imageUrl').lean();
       }
+      const isMeddie = String(peer?.email || '').toLowerCase() === 'meddie@medmap.ai';
+      const unreadCount = await Message.countDocuments({
+        conversationId: row._id,
+        to: userObjectId,
+        readAt: null,
+      });
       return {
         conversationId: row._id,
         peerUserId,
         peerName: peer?.fullName || 'Unknown user',
+        peerEmail: peer?.email || '',
+        peerAvatarUrl: peer?.avatarUrl || '',
+        isMeddie,
         provider: provider || null,
         latestMessage: latest.body,
         latestMessageAt: latest.createdAt,
+        unreadCount,
+        unread: unreadCount > 0,
       };
     })
   );
@@ -189,6 +203,16 @@ async function listConversationMessages({ userId, conversationId }) {
     (msg) => String(msg.from) === String(userId) || String(msg.to) === String(userId)
   );
   if (!isParticipant) throw Object.assign(new Error('Forbidden'), { status: 403 });
+
+  // Mark inbound unread messages as read when conversation is opened.
+  await Message.updateMany(
+    {
+      conversationId,
+      to: new mongoose.Types.ObjectId(userId),
+      readAt: null,
+    },
+    { $set: { readAt: new Date() } }
+  );
 
   return messages;
 }
@@ -215,19 +239,22 @@ async function replyToConversation({ userId, conversationId, body }) {
 
   const payload = serializeMessage(created);
   emitToConversation(conversationId, 'message:new', { message: payload });
+  const sender = await User.findById(userId).select('fullName').lean();
+  const senderName = sender?.fullName || 'Someone';
+  const preview = text.length > 100 ? `${text.slice(0, 97)}...` : text;
   await notifyUserPush({
     userId: toUserId,
-    title: 'New message',
-    body: text.length > 100 ? `${text.slice(0, 97)}...` : text,
-    data: { type: 'message', conversationId },
+    title: `New message from ${senderName}`,
+    body: preview,
+    data: { type: 'message', conversationId, senderName },
   });
 
   await notificationsService.createNotification({
     userId: toUserId,
     type: 'message',
-    title: 'New message',
-    body: text.length > 100 ? `${text.slice(0, 97)}...` : text,
-    data: { conversationId },
+    title: `New message from ${senderName}`,
+    body: preview,
+    data: { conversationId, senderName },
   });
 
   // If replying to Meddie, generate an AI response in the same conversation.

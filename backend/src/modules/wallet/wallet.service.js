@@ -13,6 +13,7 @@ const {
   isQuicktellerWebhookPaymentSuccess,
   amountNgnToKobo,
 } = require("../../utils/interswitch");
+const { notifyUser } = require("../../utils/notify");
 
 async function getOrCreateWallet(userId) {
   let wallet = await Wallet.findOne({ user: userId });
@@ -158,6 +159,18 @@ async function applySuccessfulFunding(reference) {
   tx.status = "success";
 
   await Promise.all([wallet.save(), tx.save()]);
+
+  // Notify wallet owner.
+  await notifyUser({
+    userId: tx.user,
+    type: "wallet_topup",
+    title: "Wallet credited",
+    body: `Your wallet was credited with ₦${Number(tx.amount || 0).toLocaleString()}.`,
+    data: { type: "wallet", reference: tx.reference },
+    push: true,
+    email: true,
+    emailSubject: "MedMap wallet top-up",
+  });
 }
 
 /**

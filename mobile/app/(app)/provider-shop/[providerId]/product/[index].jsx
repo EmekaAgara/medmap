@@ -18,6 +18,7 @@ import { normalizeCatalogProducts } from '../../../../../src/utils/catalog';
 import { presentOrderResult } from '../../../../../src/utils/orderPay';
 import { addToCart } from '../../../../../src/cart/cartStore';
 import { ui, spacing, radii } from '../../../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../../../components/Shimmer';
 
 export default function ProviderProductDetailScreen() {
   const { providerId, index: indexStr } = useLocalSearchParams();
@@ -121,7 +122,11 @@ export default function ProviderProductDetailScreen() {
     return (
       <SafeAreaView style={[ui.screen(theme), { flex: 1 }]} edges={['top']}>
         <ScreenHeader title="Product" onBack={() => router.back()} />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.xl }} />
+        <View style={{ gap: spacing.md }}>
+          <ShimmerBlock theme={theme} style={{ height: 220, borderRadius: radii.lg }} />
+          <ShimmerBlock theme={theme} style={{ height: 22, width: '60%' }} />
+          <ShimmerText theme={theme} lines={3} />
+        </View>
       </SafeAreaView>
     );
   }

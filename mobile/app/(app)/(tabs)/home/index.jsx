@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,46 +10,57 @@ import {
   Switch,
   Alert,
   Image,
-  Modal,
   Platform,
-} from 'react-native';
-import * as Location from 'expo-location';
-import { useThemeMode } from '../../../_layout';
-import { useAuth } from '../../../_layout';
-import { apiRequest } from '../../../../src/api/client';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ui, spacing, radii, typography, shadows } from '../../../../theme/tokens';
-import ScreenHeader from '../../../components/ScreenHeader';
+} from "react-native";
+import * as Location from "expo-location";
+import { useThemeMode } from "../../../_layout";
+import { useAuth } from "../../../_layout";
+import { apiRequest } from "../../../../src/api/client";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  ui,
+  spacing,
+  radii,
+  typography,
+  shadows,
+} from "../../../../theme/tokens";
+import QuickActionsGrid from "../../../components/QuickActionsGrid";
+import {
+  ShimmerAvatar,
+  ShimmerBlock,
+  ShimmerText,
+} from "../../../components/Shimmer";
+import { hapticTap, hapticToggle } from "../../../../src/utils/haptics";
 
 const PAGE_LIMIT = 10;
 
 function productPreviewLabel(p) {
-  if (p == null) return '';
-  if (typeof p === 'string') return p;
-  if (typeof p === 'object' && p.name != null) {
+  if (p == null) return "";
+  if (typeof p === "string") return p;
+  if (typeof p === "object" && p.name != null) {
     const pr = Math.max(0, Number(p.price) || 0);
     return pr > 0 ? `${p.name} (₦${pr.toLocaleString()})` : `${p.name} (free)`;
   }
-  return '';
+  return "";
 }
 
 function getInitials(name) {
-  const parts = String(name || '')
+  const parts = String(name || "")
     .trim()
     .split(/\s+/)
     .filter(Boolean);
-  if (!parts.length) return '?';
+  if (!parts.length) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function appointmentStatusLabel(s) {
-  if (s === 'pending') return 'Awaiting provider';
-  if (s === 'confirmed') return 'Confirmed';
-  if (s === 'rejected') return 'Declined';
-  if (s === 'cancelled') return 'Cancelled';
+  if (s === "pending") return "Awaiting provider";
+  if (s === "confirmed") return "Confirmed";
+  if (s === "rejected") return "Declined";
+  if (s === "cancelled") return "Cancelled";
   return s;
 }
 
@@ -57,19 +68,20 @@ export default function HomeScreen() {
   const { theme } = useThemeMode();
   const { token, user } = useAuth();
   const router = useRouter();
-  const [type, setType] = useState('');
-  const [search, setSearch] = useState('');
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [type, setType] = useState("");
+  const [search, setSearch] = useState("");
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [claimingProviderId, setClaimingProviderId] = useState('');
+  const [error, setError] = useState("");
+  const [claimingProviderId, setClaimingProviderId] = useState("");
   const [radiusKm] = useState(50000);
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [userCoords, setUserCoords] = useState(null);
-  const [locationLabel, setLocationLabel] = useState('');
+  const [locationLabel, setLocationLabel] = useState("");
   const [appointments, setAppointments] = useState([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
-  const [appointmentsError, setAppointmentsError] = useState('');
+  const [appointmentsError, setAppointmentsError] = useState("");
   const [providerTypeModalOpen, setProviderTypeModalOpen] = useState(false);
 
   const typeRef = useRef(type);
@@ -78,44 +90,73 @@ export default function HomeScreen() {
   searchRef.current = search;
   const searchDebounceRef = useRef(null);
 
+  const loadUnreadNotifications = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await apiRequest("/notifications/mine/unread-count", {
+        method: "GET",
+        token,
+      });
+      const c = Number(res.data?.unreadCount || 0);
+      setUnreadNotifCount(Number.isFinite(c) ? c : 0);
+    } catch {
+      // ignore unread count failures (should never break home UI)
+    }
+  }, [token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUnreadNotifications();
+    }, [loadUnreadNotifications]),
+  );
+
+  useEffect(() => {
+    if (!token) return undefined;
+    const t = setInterval(() => {
+      loadUnreadNotifications();
+    }, 20000);
+    return () => clearInterval(t);
+  }, [token, loadUnreadNotifications]);
+
   const providerTypes = useMemo(
     () => [
-      { value: '', label: 'All' },
-      { value: 'doctor', label: 'Doctors' },
-      { value: 'pharmacy', label: 'Pharmacies' },
-      { value: 'hospital', label: 'Hospitals' },
+      { value: "", label: "All" },
+      { value: "doctor", label: "Doctors" },
+      { value: "pharmacy", label: "Pharmacies" },
+      { value: "hospital", label: "Hospitals" },
     ],
-    []
+    [],
   );
 
   const providerTypeLabel =
-    providerTypes.find((p) => p.value === type)?.label || 'All';
+    providerTypes.find((p) => p.value === type)?.label || "All";
 
   const fetchProviders = useCallback(
     async (
       selectedType = typeRef.current,
       currentSearch = searchRef.current,
       pageToFetch = 1,
-      { append = false, openNowOnlyOverride = null } = {}
+      { append = false, openNowOnlyOverride = null } = {},
     ) => {
       try {
         setLoading(!append);
-        setError('');
+        setError("");
         const params = new URLSearchParams();
-        params.set('limit', String(PAGE_LIMIT));
-        params.set('page', String(pageToFetch));
-        if (selectedType) params.set('type', selectedType);
-        if (currentSearch.trim()) params.set('search', currentSearch.trim());
-        const openNowValue = openNowOnlyOverride === null ? openNowOnly : openNowOnlyOverride;
-        if (openNowValue) params.set('openNow', 'true');
+        params.set("limit", String(PAGE_LIMIT));
+        params.set("page", String(pageToFetch));
+        if (selectedType) params.set("type", selectedType);
+        if (currentSearch.trim()) params.set("search", currentSearch.trim());
+        const openNowValue =
+          openNowOnlyOverride === null ? openNowOnly : openNowOnlyOverride;
+        if (openNowValue) params.set("openNow", "true");
         if (userCoords) {
-          params.set('latitude', String(userCoords.latitude));
-          params.set('longitude', String(userCoords.longitude));
-          params.set('radiusKm', String(radiusKm));
+          params.set("latitude", String(userCoords.latitude));
+          params.set("longitude", String(userCoords.longitude));
+          params.set("radiusKm", String(radiusKm));
         }
 
         const res = await apiRequest(`/providers?${params.toString()}`, {
-          method: 'GET',
+          method: "GET",
           token,
         });
 
@@ -123,12 +164,12 @@ export default function HomeScreen() {
         if (append) setProviders((prev) => [...prev, ...items]);
         else setProviders(items);
       } catch (e) {
-        setError(e.message || 'Could not load providers');
+        setError(e.message || "Could not load providers");
       } finally {
         setLoading(false);
       }
     },
-    [token, openNowOnly, userCoords, radiusKm]
+    [token, openNowOnly, userCoords, radiusKm],
   );
 
   useEffect(() => {
@@ -137,19 +178,24 @@ export default function HomeScreen() {
 
   const requestLocationAndSearch = async () => {
     try {
-      setError('');
+      setError("");
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setLocationLabel('Location denied — showing all results');
+      if (status !== "granted") {
+        setLocationLabel("Location denied — showing all results");
         setUserCoords(null);
         return;
       }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const coords = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      };
       setUserCoords(coords);
-      setLocationLabel('Showing the 10 nearest providers by distance');
+      setLocationLabel("Showing the 10 nearest providers by distance");
     } catch (e) {
-      setError(e.message || 'Could not get location');
+      setError(e.message || "Could not get location");
     }
   };
 
@@ -180,7 +226,7 @@ export default function HomeScreen() {
   }, [search]);
 
   useEffect(() => {
-    if (user?.accountType !== 'patient') {
+    if (user?.accountType !== "patient") {
       setAppointments([]);
       return;
     }
@@ -188,11 +234,14 @@ export default function HomeScreen() {
     (async () => {
       try {
         setAppointmentsLoading(true);
-        setAppointmentsError('');
-        const res = await apiRequest('/appointments/mine/patient', { method: 'GET', token });
+        setAppointmentsError("");
+        const res = await apiRequest("/appointments/mine/patient", {
+          method: "GET",
+          token,
+        });
         setAppointments(res.data || []);
       } catch (e) {
-        setAppointmentsError(e.message || 'Could not load appointments');
+        setAppointmentsError(e.message || "Could not load appointments");
       } finally {
         setAppointmentsLoading(false);
       }
@@ -208,7 +257,7 @@ export default function HomeScreen() {
 
   const handleChat = async (provider) => {
     router.push({
-      pathname: '/(app)/provider-chat',
+      pathname: "/(app)/provider-chat",
       params: { providerId: provider._id, providerName: provider.name },
     });
   };
@@ -217,15 +266,15 @@ export default function HomeScreen() {
     try {
       setClaimingProviderId(providerId);
       await apiRequest(`/providers/${providerId}/claim`, {
-        method: 'POST',
+        method: "POST",
         token,
       });
-      Alert.alert('Claim submitted', 'An admin will review your request.');
+      Alert.alert("Claim submitted", "An admin will review your request.");
       await fetchProviders();
     } catch (e) {
-      setError(e.message || 'Unable to claim provider');
+      setError(e.message || "Unable to claim provider");
     } finally {
-      setClaimingProviderId('');
+      setClaimingProviderId("");
     }
   };
 
@@ -243,66 +292,142 @@ export default function HomeScreen() {
     if (can) await Linking.openURL(url);
   };
 
-  const quickActions = [];
-  if (user?.accountType && user.accountType !== 'patient') {
-    quickActions.push({
-      key: 'requests',
-      label: 'Requests',
-      icon: 'time-outline',
-      color: theme.text,
-      onPress: () => router.push('/(app)/provider-appointments'),
-    });
-    quickActions.push({
-      key: 'listing',
-      label: 'Manage',
-      icon: 'briefcase-outline',
-      color: theme.text,
-      onPress: () => router.push('/(app)/provider-listing'),
-    });
-  }
-
-  quickActions.push({
-    key: 'explore',
-    label: 'Explore',
-    icon: 'map-outline',
-    color: theme.text,
-    onPress: () => router.push('/(tabs)/explore'),
-  });
-  quickActions.push({
-    key: 'urgent',
-    label: 'Urgent',
-    icon: 'warning-outline',
-    color: theme.error,
-    onPress: () => router.push('/(tabs)/home/urgent'),
-  });
-  quickActions.push({
-    key: 'messages',
-    label: 'Messages',
-    icon: 'chatbubble-outline',
-    color: theme.text,
-    onPress: () => router.push('/(tabs)/messages'),
-  });
-  quickActions.push({
-    key: 'notifications',
-    label: 'Alerts',
-    icon: 'notifications-outline',
-    color: theme.text,
-    onPress: () => router.push('/(tabs)/notifications'),
-  });
+  // Exactly 8 quick actions on Home; remaining shortcuts live on Profile.
+  const quickActions =
+    user?.accountType === "patient"
+      ? [
+          {
+            key: "explore",
+            label: "Explore",
+            icon: "map-outline",
+            onPress: () => router.push("/(tabs)/explore"),
+          },
+          {
+            key: "urgent",
+            label: "Urgent",
+            icon: "warning-outline",
+            color: theme.error,
+            onPress: () => router.push("/(tabs)/home/urgent"),
+          },
+          {
+            key: "messages",
+            label: "Messages",
+            icon: "chatbubble-outline",
+            onPress: () => router.push("/(tabs)/messages"),
+          },
+          {
+            key: "alerts",
+            label: "Alerts",
+            icon: "notifications-outline",
+            onPress: () => router.push("/(tabs)/notifications"),
+          },
+          {
+            key: "wallet",
+            label: "Wallet",
+            icon: "wallet-outline",
+            onPress: () => router.push("/(app)/wallet"),
+          },
+          {
+            key: "appointments",
+            label: "Appts",
+            icon: "calendar-outline",
+            onPress: () => router.push("/(app)/appointments"),
+          },
+          {
+            key: "orders",
+            label: "Orders",
+            icon: "bag-outline",
+            onPress: () => router.push("/(app)/orders"),
+          },
+          {
+            key: "timeline",
+            label: "Timeline",
+            icon: "pulse-outline",
+            onPress: () => router.push("/(app)/medical-timeline"),
+          },
+        ]
+      : [
+          {
+            key: "explore",
+            label: "Explore",
+            icon: "map-outline",
+            onPress: () => router.push("/(tabs)/explore"),
+          },
+          {
+            key: "urgent",
+            label: "Urgent",
+            icon: "warning-outline",
+            color: theme.error,
+            onPress: () => router.push("/(tabs)/home/urgent"),
+          },
+          {
+            key: "messages",
+            label: "Messages",
+            icon: "chatbubble-outline",
+            onPress: () => router.push("/(tabs)/messages"),
+          },
+          {
+            key: "alerts",
+            label: "Alerts",
+            icon: "notifications-outline",
+            onPress: () => router.push("/(tabs)/notifications"),
+          },
+          {
+            key: "wallet",
+            label: "Wallet",
+            icon: "wallet-outline",
+            onPress: () => router.push("/(app)/wallet"),
+          },
+          {
+            key: "listing",
+            label: "Listing",
+            icon: "briefcase-outline",
+            onPress: () => router.push("/(app)/provider-listing"),
+          },
+          {
+            key: "requests",
+            label: "Requests",
+            icon: "time-outline",
+            onPress: () => router.push("/(app)/provider-appointments"),
+          },
+          {
+            key: "sales",
+            label: "Sales",
+            icon: "bag-outline",
+            onPress: () => router.push("/(app)/provider-orders"),
+          },
+        ];
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: theme.background, paddingHorizontal: spacing.md }}
-      edges={['top']}
+      style={{
+        flex: 1,
+        backgroundColor: theme.background,
+        paddingHorizontal: spacing.md,
+      }}
+      edges={["top"]}
     >
       <View style={[styles.headerBar, { borderBottomColor: theme.border }]}>
         <Text style={[ui.h2(theme), styles.headerTitle]}>MedMap</Text>
         <TouchableOpacity
-          onPress={() => router.push('/(tabs)/notifications')}
-          style={[styles.headerNotifBtn, { borderColor: theme.border, backgroundColor: theme.secondary }]}
+          onPress={() => {
+            hapticTap();
+            router.push("/(tabs)/notifications");
+          }}
+          style={[
+            styles.headerNotifBtn,
+            { borderColor: theme.border, backgroundColor: theme.secondary },
+          ]}
           hitSlop={10}
         >
           <Ionicons name="notifications-outline" size={22} color={theme.text} />
+          {unreadNotifCount > 0 ? (
+            <View style={[styles.notifBadge, { backgroundColor: theme.error }]}>
+              <Text style={styles.notifBadgeText}>
+                {unreadNotifCount > 99 ? "99+" : String(unreadNotifCount)}
+              </Text>
+            </View>
+          ) : null}
         </TouchableOpacity>
       </View>
 
@@ -310,32 +435,35 @@ export default function HomeScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[ui.card(theme), { padding: spacing.lg }, styles.quickActionsCard]}>
+        <View
+          style={[
+            ui.card(theme),
+            { padding: spacing.lg },
+            styles.quickActionsCard,
+          ]}
+        >
           <View style={styles.quickActionsHeader}>
-            <Text style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.xs }]}>Quick actions</Text>
+            <Text
+              style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.xs }]}
+            >
+              Quick actions
+            </Text>
             <Text style={[ui.caption(theme), { marginBottom: spacing.md }]}>
-              Hello, {user?.fullName || user?.firstName || 'there'}.
+              Hello, {user?.fullName || user?.firstName || "there"}.
             </Text>
           </View>
 
-          <View style={styles.quickActionsRow}>
-            {quickActions.map((action) => (
-              <TouchableOpacity
-                key={action.key}
-                style={[styles.quickActionBtn, { borderColor: theme.border }]}
-                onPress={action.onPress}
-                activeOpacity={0.9}
-              >
-                <View style={[styles.quickActionIconWrap, { backgroundColor: theme.secondary }]}>
-                  <Ionicons name={action.icon} size={22} color={theme.primary} />
-                </View>
-                <Text style={[styles.quickActionLabel, { color: theme.subtleText }]}>{action.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <QuickActionsGrid actions={quickActions} theme={theme} />
         </View>
 
-        <View style={[ui.card(theme), { padding: spacing.lg }, styles.discoveryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            ui.card(theme),
+            { padding: spacing.lg },
+            styles.discoveryCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <TextInput
             value={search}
             onChangeText={setSearch}
@@ -345,77 +473,168 @@ export default function HomeScreen() {
           />
 
           {locationLabel ? (
-            <Text style={[ui.caption(theme), { marginTop: spacing.sm, marginBottom: spacing.md }]}>{locationLabel}</Text>
+            <Text
+              style={[
+                ui.caption(theme),
+                { marginTop: spacing.sm, marginBottom: spacing.md },
+              ]}
+            >
+              {locationLabel}
+            </Text>
           ) : null}
 
           <View style={styles.filterLayout}>
             <View style={styles.filterSidebar}>
               <View style={styles.filterLeft}>
-                <Text style={[ui.caption(theme), { marginBottom: spacing.xs }]}>Provider type</Text>
+                <Text style={[ui.caption(theme), { marginBottom: spacing.xs }]}>
+                  Provider type
+                </Text>
                 <TouchableOpacity
                   style={[ui.buttonOutline(theme), styles.providerTypeDropdown]}
-                  onPress={() => setProviderTypeModalOpen(true)}
+                  onPress={() => {
+                    hapticTap();
+                    setProviderTypeModalOpen(true);
+                  }}
                   activeOpacity={0.9}
                 >
-                  <Text style={[ui.buttonText(theme), styles.providerTypeDropdownText]} numberOfLines={1}>
+                  <Text
+                    style={[
+                      ui.buttonText(theme),
+                      styles.providerTypeDropdownText,
+                    ]}
+                    numberOfLines={1}
+                  >
                     {providerTypeLabel}
                   </Text>
-                  <Ionicons name="chevron-down" size={16} color={theme.subtleText} />
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={theme.subtleText}
+                  />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.filterRight}>
-                <Text style={[ui.caption(theme), { marginBottom: spacing.xs }]}>Open now</Text>
-                <View style={[styles.openNowRow, { borderColor: theme.border }]}>
-                  <Text style={{ color: theme.subtleText, fontSize: 12 }}>{openNowOnly ? 'Open' : 'Any'}</Text>
+                <Text style={[ui.caption(theme), { marginBottom: spacing.xs }]}>
+                  Open now
+                </Text>
+                <View
+                  style={[styles.openNowRow, { borderColor: theme.border }]}
+                >
+                  <Text style={{ color: theme.subtleText, fontSize: 12 }}>
+                    {openNowOnly ? "Open" : "Any"}
+                  </Text>
                   <Switch
                     value={openNowOnly}
                     onValueChange={(v) => {
+                      hapticToggle();
                       setOpenNowOnly(v);
-                      fetchProviders(typeRef.current, searchRef.current, 1, { openNowOnlyOverride: v });
+                      fetchProviders(typeRef.current, searchRef.current, 1, {
+                        openNowOnlyOverride: v,
+                      });
                     }}
                   />
                 </View>
               </View>
             </View>
 
-            <Modal
-              visible={providerTypeModalOpen}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setProviderTypeModalOpen(false)}
-            >
-              <TouchableOpacity
-                style={styles.providerTypeModalOverlay}
-                activeOpacity={1}
-                onPress={() => setProviderTypeModalOpen(false)}
-              />
-              <View style={[styles.providerTypeModalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            {providerTypeModalOpen ? (
+              <View
+                style={[
+                  styles.providerTypeInlineMenu,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 {providerTypes.map((p) => {
                   const active = p.value === type;
                   return (
                     <TouchableOpacity
-                      key={p.value || 'all'}
+                      key={p.value || "all"}
                       style={[
-                        styles.providerTypeModalOption,
-                        active ? { backgroundColor: theme.primary + '10' } : null,
+                        styles.providerTypeInlineOption,
+                        active
+                          ? { backgroundColor: theme.primary + "10" }
+                          : null,
                       ]}
                       onPress={() => {
+                        hapticTap();
                         setType(p.value);
                         fetchProviders(p.value, searchRef.current, 1);
                         setProviderTypeModalOpen(false);
                       }}
                     >
-                      <Text style={{ color: theme.text, fontWeight: active ? '800' : '600' }}>{p.label}</Text>
+                      <Text
+                        style={{
+                          color: theme.text,
+                          fontWeight: active ? "800" : "600",
+                        }}
+                      >
+                        {p.label}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            </Modal>
+            ) : null}
 
             <View style={{ flex: 1 }}>
               {loading ? (
-                <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
+                <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+                  {Array.from({ length: 3 }).map((_, idx) => (
+                    <View
+                      key={`provider-shimmer-${idx}`}
+                      style={[
+                        styles.providerCard,
+                        {
+                          borderColor: theme.border,
+                          backgroundColor: theme.card,
+                        },
+                      ]}
+                    >
+                      <View style={styles.cardHeader}>
+                        <ShimmerAvatar theme={theme} size={44} />
+                        <View style={{ flex: 1, gap: spacing.xs }}>
+                          <ShimmerBlock
+                            theme={theme}
+                            style={{ height: 14, width: "62%" }}
+                          />
+                          <ShimmerBlock
+                            theme={theme}
+                            style={{
+                              height: 20,
+                              width: "34%",
+                              borderRadius: 999,
+                            }}
+                          />
+                          <ShimmerBlock
+                            theme={theme}
+                            style={{ height: 12, width: "40%" }}
+                          />
+                        </View>
+                        <View
+                          style={{ alignItems: "flex-end", gap: spacing.xs }}
+                        >
+                          <ShimmerBlock
+                            theme={theme}
+                            style={{ height: 20, width: 62, borderRadius: 999 }}
+                          />
+                          <ShimmerBlock
+                            theme={theme}
+                            style={{ height: 12, width: 90 }}
+                          />
+                        </View>
+                      </View>
+                      <View
+                        style={[
+                          styles.cardMetaBlock,
+                          { borderTopColor: theme.border },
+                        ]}
+                      >
+                        <ShimmerText theme={theme} lines={2} />
+                      </View>
+                    </View>
+                  ))}
+                </View>
               ) : null}
               {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
 
@@ -424,140 +643,227 @@ export default function HomeScreen() {
               ) : null}
 
               {providers.map((provider) => {
-                const cardLift = Platform.OS === 'ios' ? shadows.cardDark : { elevation: 4 };
                 return (
-                <TouchableOpacity
-                  key={provider._id}
-                  activeOpacity={0.9}
-                  style={[
-                    {
-                      padding: spacing.md,
-                      marginBottom: spacing.md,
-                      borderRadius: radii.lg,
-                      borderWidth: 1,
-                      borderColor: theme.border,
-                      backgroundColor: theme.card,
-                    },
-                    cardLift,
-                  ]}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(app)/provider-details/[id]',
-                      params: { id: String(provider._id) },
-                    })
-                  }
-                >
-                  <View style={styles.cardHeader}>
-                    {provider.imageUrl ? (
-                      <Image source={{ uri: provider.imageUrl }} style={styles.avatar} />
-                    ) : (
-                      <View style={styles.avatarPlaceholder}>
-                        <Text style={{ color: theme.text, fontWeight: '800' }}>{getInitials(provider.name)}</Text>
+                  <TouchableOpacity
+                    key={provider._id}
+                    activeOpacity={0.9}
+                    style={[
+                      styles.providerCard,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: theme.card,
+                      },
+                    ]}
+                    onPress={() => {
+                      hapticTap();
+                      router.push({
+                        pathname: "/(app)/provider-details/[id]",
+                        params: { id: String(provider._id) },
+                      });
+                    }}
+                  >
+                    <View style={styles.cardHeader}>
+                      {provider.imageUrl ? (
+                        <Image
+                          source={{ uri: provider.imageUrl }}
+                          style={[styles.avatar, { borderColor: theme.border }]}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.avatarPlaceholder,
+                            {
+                              borderColor: theme.border,
+                              backgroundColor: theme.secondary,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.avatarInitials,
+                              { color: theme.text },
+                            ]}
+                          >
+                            {getInitials(provider.name)}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.cardMain}>
+                        <Text
+                          style={[styles.providerName, { color: theme.text }]}
+                        >
+                          {provider.name}
+                        </Text>
+                        <View
+                          style={[
+                            styles.typeChip,
+                            {
+                              borderColor: theme.border,
+                              backgroundColor: theme.secondary,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              ui.caption(theme),
+                              { textTransform: "capitalize" },
+                            ]}
+                          >
+                            {provider.providerType}
+                          </Text>
+                        </View>
+                        {provider.hourlyRate === 0 ? (
+                          <Text style={[ui.caption(theme), styles.meta]}>
+                            Free
+                          </Text>
+                        ) : provider.hourlyRate ? (
+                          <Text style={[ui.caption(theme), styles.meta]}>
+                            ₦{Number(provider.hourlyRate).toLocaleString()}/hr
+                          </Text>
+                        ) : null}
                       </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.providerName, { color: theme.text }]}>{provider.name}</Text>
-                      <Text style={[ui.caption(theme), styles.meta]}>{provider.providerType}</Text>
-                      {provider.hourlyRate === 0 ? (
-                        <Text style={[ui.caption(theme), styles.meta]}>Free</Text>
-                      ) : provider.hourlyRate ? (
-                        <Text style={[ui.caption(theme), styles.meta]}>
-                          ₦{Number(provider.hourlyRate).toLocaleString()}/hr
+                      <View style={styles.cardRight}>
+                        <View
+                          style={[
+                            styles.statusPill,
+                            {
+                              backgroundColor: provider.isOpenNow
+                                ? theme.success + "18"
+                                : theme.error + "18",
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.badge,
+                              {
+                                color: provider.isOpenNow
+                                  ? theme.success
+                                  : theme.error,
+                              },
+                            ]}
+                          >
+                            {provider.isOpenNow ? "Open" : "Closed"}
+                          </Text>
+                        </View>
+                        {provider.distanceKm != null ? (
+                          <Text style={[ui.caption(theme), styles.meta]}>
+                            {provider.distanceKm} km • ETA ~
+                            {Math.max(1, Math.round(provider.distanceKm * 2))}m
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.cardMetaBlock,
+                        { borderTopColor: theme.border },
+                      ]}
+                    >
+                      {provider.services?.length ? (
+                        <Text
+                          style={[ui.caption(theme), styles.metaLine]}
+                          numberOfLines={1}
+                        >
+                          Services: {provider.services.slice(0, 2).join(", ")}
+                        </Text>
+                      ) : null}
+
+                      {provider.products?.length ? (
+                        <Text
+                          style={[ui.caption(theme), styles.metaLine]}
+                          numberOfLines={1}
+                        >
+                          Products:{" "}
+                          {provider.products
+                            .slice(0, 2)
+                            .map(productPreviewLabel)
+                            .filter(Boolean)
+                            .join(", ")}
                         </Text>
                       ) : null}
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={[styles.badge, { color: provider.isOpenNow ? theme.success : theme.error }]}>
-                        {provider.isOpenNow ? 'Open' : 'Closed'}
-                      </Text>
-                      {provider.distanceKm != null ? (
-                        <Text style={[ui.caption(theme), styles.meta]}>
-                          {provider.distanceKm} km • ETA ~{Math.max(1, Math.round(provider.distanceKm * 2))}m
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  <View style={styles.cardMetaBlock}>
-                    {provider.services?.length ? (
-                      <Text style={[ui.caption(theme), styles.metaLine]} numberOfLines={1}>
-                        Services: {provider.services.slice(0, 2).join(', ')}
-                      </Text>
-                    ) : null}
-
-                    {provider.products?.length ? (
-                      <Text style={[ui.caption(theme), styles.metaLine]} numberOfLines={1}>
-                        Products:{' '}
-                        {provider.products
-                          .slice(0, 2)
-                          .map(productPreviewLabel)
-                          .filter(Boolean)
-                          .join(', ')}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  {user?.accountType === 'patient' && provider.canBook ? (
-                    <View style={styles.cardActionsRow}>
-                      <TouchableOpacity
-                        style={[ui.buttonPrimary(theme), styles.cardActionBtnPrimary]}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/(app)/book-appointment',
-                            params: { providerId: provider._id, providerName: provider.name },
-                          })
-                        }
-                      >
-                        <Text style={ui.buttonTextPrimary(theme)}>
-                          {provider.hourlyRate === 0 ? 'Free Book' : 'Book'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-              );})}
+                  </TouchableOpacity>
+                );
+              })}
 
               <TouchableOpacity
                 style={[ui.buttonOutline(theme), styles.viewAllBtn]}
-                onPress={() => router.push('/(app)/providers')}
+                onPress={() => router.push("/(app)/providers")}
               >
-                <Text style={ui.buttonText(theme)}>Browse all providers (paginated)</Text>
+                <Text style={ui.buttonText(theme)}>Browse all providers</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-        {user?.accountType === 'patient' ? (
-          <View style={[ui.card(theme), styles.appointmentsCard, { padding: spacing.lg }]}>
+        {user?.accountType === "patient" ? (
+          <View
+            style={[
+              ui.card(theme),
+              styles.appointmentsCard,
+              { padding: spacing.lg },
+            ]}
+          >
             <View style={styles.sectionHeaderRow}>
-              <Text style={[ui.h2(theme), { fontSize: 16 }]}>My appointments</Text>
-              <TouchableOpacity onPress={() => router.push('/(app)/appointments')}>
-                <Text style={{ color: theme.primary, fontWeight: '700' }}>View all</Text>
+              <Text style={[ui.h2(theme), { fontSize: 16 }]}>
+                My appointments
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/(app)/appointments")}
+              >
+                <Text style={{ color: theme.primary, fontWeight: "700" }}>
+                  View all
+                </Text>
               </TouchableOpacity>
             </View>
 
             {appointmentsLoading ? (
-              <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.md }} />
+              <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+                <ShimmerBlock
+                  theme={theme}
+                  style={{ height: 54, borderRadius: radii.md }}
+                />
+                <ShimmerBlock
+                  theme={theme}
+                  style={{ height: 54, borderRadius: radii.md }}
+                />
+              </View>
             ) : null}
 
-            {appointmentsError ? <Text style={ui.errorText(theme)}>{appointmentsError}</Text> : null}
+            {appointmentsError ? (
+              <Text style={ui.errorText(theme)}>{appointmentsError}</Text>
+            ) : null}
 
             {!appointmentsLoading && appointments.length === 0 ? (
-              <Text style={[ui.caption(theme), { marginTop: spacing.sm }]}>No appointments yet.</Text>
+              <Text style={[ui.caption(theme), { marginTop: spacing.sm }]}>
+                No appointments yet.
+              </Text>
             ) : null}
 
             {appointments.slice(0, 2).map((a) => (
               <TouchableOpacity
                 key={a._id}
-                onPress={() => router.push({ pathname: '/(app)/appointments/[id]', params: { id: String(a._id) } })}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(app)/appointments/[id]",
+                    params: { id: String(a._id) },
+                  })
+                }
                 style={[
                   styles.appointmentInlineItem,
-                  { borderColor: theme.border, backgroundColor: theme.secondary },
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.secondary,
+                  },
                 ]}
               >
-                <Text style={{ color: theme.text, fontWeight: '700' }}>{a.provider?.name || 'Provider'}</Text>
+                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  {a.provider?.name || "Provider"}
+                </Text>
                 <Text style={[ui.caption(theme), { marginTop: spacing.xs }]}>
-                  {appointmentStatusLabel(a.status)} ·{' '}
-                  {a.status === 'confirmed' && a.confirmedStart
+                  {appointmentStatusLabel(a.status)} ·{" "}
+                  {a.status === "confirmed" && a.confirmedStart
                     ? new Date(a.confirmedStart).toLocaleString()
                     : new Date(a.requestedStart).toLocaleString()}
                 </Text>
@@ -571,65 +877,59 @@ export default function HomeScreen() {
 }
 
 const styles = {
-  container: { paddingBottom: spacing['2xl'] },
+  container: { paddingBottom: spacing["2xl"] },
   title: { marginBottom: spacing.sm },
   subtitle: { marginBottom: spacing.md },
   headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
   },
-  headerTitle: { fontWeight: '800', fontSize: 20 },
+  headerTitle: { fontWeight: "800", fontSize: 20 },
   headerNotifBtn: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
+  },
+  notifBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notifBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
   },
   stickyHeader: {
     paddingTop: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.xs,
   },
-  stickyHeaderCard: { },
+  stickyHeaderCard: {},
   logoIconWrap: {
     width: 44,
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  logoIcon: { width: 28, height: 28, resizeMode: 'contain' },
+  logoIcon: { width: 28, height: 28, resizeMode: "contain" },
   quickActionsHeader: { marginBottom: spacing.md },
-  quickActionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: 0, marginBottom: spacing.lg },
-  quickActionBtn: {
-    width: '23%',
-    flexGrow: 0,
-    flexShrink: 0,
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-    borderRadius: radii.md,
-    borderWidth: 1,
-  },
-  quickActionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  quickActionLabel: {
-    fontFamily: typography.fontFamilyMedium,
-    fontSize: 11,
-    textAlign: 'center',
-  },
+  // Quick actions now use shared `QuickActionsGrid` component.
   topInfoCard: { marginTop: spacing.md },
   discoveryCard: { marginTop: spacing.md },
   appointmentsInline: { marginTop: spacing.md, marginBottom: spacing.md },
@@ -640,16 +940,26 @@ const styles = {
     borderRadius: 14,
     borderWidth: 1,
   },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
   appointmentItem: { marginTop: 0 },
-  filterLayout: { flexDirection: 'column', gap: spacing.md },
-  filterSidebar: { width: '100%', paddingTop: spacing.sm, flexDirection: 'row', gap: spacing.md },
+  filterLayout: { flexDirection: "column", gap: spacing.md },
+  filterSidebar: {
+    width: "100%",
+    paddingTop: spacing.sm,
+    flexDirection: "row",
+    gap: spacing.md,
+  },
   filterLeft: { flex: 1 },
   filterRight: { flex: 1 },
   providerTypeDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderRadius: 999,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
@@ -658,32 +968,32 @@ const styles = {
   },
   providerTypeDropdownText: { flex: 1, marginRight: spacing.sm },
   openNowRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     height: 42,
   },
-  providerTypeModalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  providerTypeModalCard: {
-    marginHorizontal: spacing.md,
-    marginTop: 120,
+  providerTypeInlineMenu: {
+    width: "48%",
+    marginTop: spacing.xs,
     borderWidth: 1,
     borderRadius: 16,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
+    alignSelf: "flex-start",
   },
-  providerTypeModalOption: {
+  providerTypeInlineOption: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     borderRadius: 12,
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
     paddingTop: 84,
     paddingHorizontal: spacing.lg,
   },
@@ -691,28 +1001,28 @@ const styles = {
     borderWidth: 1,
     borderRadius: 16,
     padding: spacing.lg,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     gap: spacing.sm,
   },
   modalItem: {
-    width: '48%',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: "48%",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.xs,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  loadMoreBtn: { marginBottom: spacing['2xl'], alignSelf: 'center' },
+  loadMoreBtn: { marginBottom: spacing["2xl"], alignSelf: "center" },
   searchInput: { marginBottom: spacing.md },
   switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
   filtersRow: { gap: spacing.sm, paddingBottom: spacing.sm },
@@ -724,25 +1034,51 @@ const styles = {
   },
   searchBtn: { marginBottom: spacing.lg },
   card: { marginBottom: spacing.md },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  providerName: { fontSize: 16, fontWeight: '600' },
-  badge: { fontSize: 12, fontWeight: '600' },
+  providerCard: {
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+  },
+  cardMain: { flex: 1 },
+  cardRight: { alignItems: "flex-end", marginLeft: spacing.sm },
+  rowBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  providerName: { fontSize: 16, fontWeight: "700" },
+  typeChip: {
+    alignSelf: "flex-start",
+    marginTop: spacing.xs,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  statusPill: {
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  badge: { fontSize: 12, fontWeight: "600" },
   meta: { marginTop: spacing.xs },
-  cardMetaBlock: { marginTop: spacing.sm },
+  cardMetaBlock: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+  },
   metaLine: { marginTop: spacing.xs },
-  cardActionsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  cardActionBtn: { flex: 1, borderRadius: 14, paddingHorizontal: spacing.md, height: 40 },
-  cardActionBtnPrimary: { flex: 1, borderRadius: 14, paddingHorizontal: spacing.md, height: 40 },
   viewAllBtn: { marginTop: spacing.lg },
   avatarPlaceholder: {
     width: 44,
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  cardHeader: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
-  avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  avatarInitials: { fontWeight: "800", fontSize: 13 },
+  cardHeader: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
+  avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 1 },
 };

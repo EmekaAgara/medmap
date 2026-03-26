@@ -3,6 +3,7 @@ const Provider = require('../../models/Provider');
 const walletService = require('../wallet/wallet.service');
 const cloudinary = require('../../config/cloudinary');
 const PrescriptionUpload = require('../../models/PrescriptionUpload');
+const { notifyUser } = require('../../utils/notify');
 
 // Catalog normalization (keep in sync with provider.service normalizeProducts)
 function normalizeCatalog(raw) {
@@ -228,6 +229,16 @@ async function createOrder(buyerUserId, payload) {
 
   if (total === 0) {
     await decrementProviderStock({ providerId: provider._id, items: validatedItems });
+    await notifyUser({
+      userId: provider.ownerUser,
+      type: 'order',
+      title: 'New order',
+      body: `You received a new order (${validatedItems.length} item${validatedItems.length === 1 ? '' : 's'}).`,
+      data: { type: 'order', orderId: String(order._id) },
+      push: true,
+      email: true,
+      emailSubject: 'New MedMap order',
+    });
     return { order: order.toObject(), payment: null };
   }
 
@@ -247,6 +258,16 @@ async function createOrder(buyerUserId, payload) {
     ];
     await order.save();
     await decrementProviderStock({ providerId: provider._id, items: validatedItems });
+    await notifyUser({
+      userId: provider.ownerUser,
+      type: 'order',
+      title: 'New paid order',
+      body: `A customer paid for an order of ₦${Number(total).toLocaleString()}.`,
+      data: { type: 'order', orderId: String(order._id) },
+      push: true,
+      email: true,
+      emailSubject: 'New paid MedMap order',
+    });
     return { order: order.toObject(), payment: { method: 'wallet', reference } };
   }
 
@@ -313,6 +334,17 @@ async function completeOrderPayment(buyerUserId, orderId) {
   await order.save();
   await decrementProviderStock({ providerId: order.provider, items: order.items });
 
+  await notifyUser({
+    userId: order.providerOwnerUser,
+    type: 'order',
+    title: 'Order paid',
+    body: `An order was paid: ₦${Number(order.totalAmount || 0).toLocaleString()}.`,
+    data: { type: 'order', orderId: String(order._id) },
+    push: true,
+    email: true,
+    emailSubject: 'MedMap order paid',
+  });
+
   return { order: order.toObject(), payment: { method: 'wallet', reference } };
 }
 
@@ -362,6 +394,16 @@ async function cancelByBuyer(userId, orderId) {
     { status: 'cancelled', note: 'Cancelled by buyer' },
   ];
   await order.save();
+
+  await notifyUser({
+    userId: order.providerOwnerUser,
+    type: 'order',
+    title: 'Order cancelled',
+    body: 'A buyer cancelled an unpaid order.',
+    data: { type: 'order', orderId: String(order._id) },
+    push: true,
+    email: false,
+  });
   return order.toObject();
 }
 
@@ -390,6 +432,17 @@ async function markFulfilled(ownerUserId, orderId) {
       meta: { kind: 'order', orderId: String(order._id) },
     });
   }
+
+  await notifyUser({
+    userId: order.buyerUser,
+    type: 'order',
+    title: 'Order fulfilled',
+    body: 'Your order has been fulfilled.',
+    data: { type: 'order', orderId: String(order._id) },
+    push: true,
+    email: true,
+    emailSubject: 'Your MedMap order is fulfilled',
+  });
 
   return order.toObject();
 }
@@ -438,6 +491,22 @@ async function updateStatusBySeller(ownerUserId, orderId, { status, note } = {})
     { status: next, note: note ? String(note).slice(0, 500) : undefined },
   ];
   await order.save();
+
+  await notifyUser({
+    userId: order.buyerUser,
+    type: 'order',
+    title: 'Order update',
+    body:
+      next === 'out_for_delivery'
+        ? 'Your order is out for delivery.'
+        : next === 'ready_for_pickup'
+          ? 'Your order is ready for pickup.'
+          : 'Your order is being processed.',
+    data: { type: 'order', orderId: String(order._id), status: next },
+    push: true,
+    email: false,
+  });
+
   return order.toObject();
 }
 

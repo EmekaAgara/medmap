@@ -6,6 +6,7 @@ import { useAuth, useThemeMode } from '../../_layout';
 import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
 import { ui, spacing } from '../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../components/Shimmer';
 
 function statusLabel(s) {
   if (s === 'pending_payment') return 'Awaiting payment';
@@ -47,7 +48,16 @@ export default function MyOrdersScreen() {
   return (
     <SafeAreaView style={ui.screen(theme)} edges={['top']}>
       <ScreenHeader title="My orders" />
-      {loading ? <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} /> : null}
+      {loading ? (
+        <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <View key={`orders-shimmer-${idx}`} style={[ui.card(theme), { padding: spacing.md }]}>
+              <ShimmerBlock theme={theme} style={{ height: 14, width: '50%', marginBottom: spacing.xs }} />
+              <ShimmerText theme={theme} lines={2} />
+            </View>
+          ))}
+        </View>
+      ) : null}
       {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
       <ScrollView contentContainerStyle={{ paddingBottom: spacing['2xl'] }}>
         {!loading && !items.length ? (

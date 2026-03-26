@@ -20,6 +20,7 @@ import { useAuth, useThemeMode } from '../../_layout';
 import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
 import { ui, spacing, radii, shadows } from '../../../theme/tokens';
+import { ShimmerAvatar, ShimmerBlock, ShimmerText } from '../../components/Shimmer';
 
 const PAGE_LIMIT = 20;
 
@@ -226,7 +227,21 @@ export default function ProvidersPage() {
         </Modal>
 
         <View style={{ flex: 1 }}>
-            {loading ? <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} /> : null}
+            {loading ? (
+              <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+                {Array.from({ length: 4 }).map((_, idx) => (
+                  <View key={`providers-list-shimmer-${idx}`} style={[ui.card(theme), { padding: spacing.md }]}>
+                    <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+                      <ShimmerAvatar theme={theme} size={44} />
+                      <View style={{ flex: 1 }}>
+                        <ShimmerBlock theme={theme} style={{ height: 14, width: '52%', marginBottom: spacing.xs }} />
+                        <ShimmerText theme={theme} lines={2} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
             {!loading && !providers.length ? <Text style={ui.caption(theme)}>No providers found.</Text> : null}
 

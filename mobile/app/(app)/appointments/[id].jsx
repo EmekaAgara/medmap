@@ -17,6 +17,7 @@ import { useAuth, useThemeMode } from '../../_layout';
 import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
 import { ui, spacing, typography } from '../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../components/Shimmer';
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -91,7 +92,11 @@ export default function AppointmentDetailScreen() {
     return (
       <SafeAreaView style={ui.screen(theme)} edges={['top']}>
         <ScreenHeader title="Appointment" />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
+        <View style={{ gap: spacing.md }}>
+          <ShimmerBlock theme={theme} style={{ height: 22, width: '48%' }} />
+          <ShimmerText theme={theme} lines={3} />
+          <ShimmerBlock theme={theme} style={{ height: 120, borderRadius: 12 }} />
+        </View>
       </SafeAreaView>
     );
   }

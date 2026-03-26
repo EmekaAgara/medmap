@@ -35,9 +35,19 @@ async function markRead(req, res) {
   }
 }
 
+async function unreadCount(req, res) {
+  try {
+    const count = await notificationsService.unreadCount(req.user.id);
+    return success(res, { unreadCount: count });
+  } catch (err) {
+    return fail(res, err.message, err.status || 500);
+  }
+}
+
 module.exports = {
   listMine,
   markAllRead,
   markRead,
+  unreadCount,
 };
 

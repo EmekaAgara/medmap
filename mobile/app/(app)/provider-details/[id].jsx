@@ -21,6 +21,8 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
 import { ui, spacing, radii, shadows } from '../../../theme/tokens';
 import { normalizeCatalogProducts } from '../../../src/utils/catalog';
+import { ShimmerAvatar, ShimmerBlock, ShimmerText } from '../../components/Shimmer';
+import { hapticTap, hapticToggle, hapticSuccess } from '../../../src/utils/haptics';
 
 function serviceKey(name) {
   return `s:${encodeURIComponent(name)}`;
@@ -110,6 +112,7 @@ export default function ProviderDetailsScreen() {
   }, [provider?._id]);
 
   const toggleServiceKey = (sk) => {
+    hapticTap();
     setSelectedServiceKeys((prev) => (prev.includes(sk) ? prev.filter((x) => x !== sk) : [...prev, sk]));
   };
 
@@ -173,6 +176,7 @@ export default function ProviderDetailsScreen() {
       });
       await load();
       await loadMine();
+      hapticSuccess();
     } catch (e) {
       setError(e.message || 'Unable to save listing');
     } finally {
@@ -221,7 +225,22 @@ export default function ProviderDetailsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[ui.screen(theme), { flex: 1 }]} edges={['top']}>
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.xl }} />
+        <ScreenHeader title="Provider" onBack={() => router.back()} />
+        <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.md }}>
+          <View style={[styles.heroCard, { borderColor: theme.border, backgroundColor: theme.card }]}>
+            <View style={styles.heroTopRow}>
+              <ShimmerAvatar theme={theme} size={70} />
+              <View style={styles.heroMain}>
+                <ShimmerBlock theme={theme} style={{ height: 18, width: '65%' }} />
+                <View style={{ marginTop: spacing.xs }}>
+                  <ShimmerText theme={theme} lines={2} />
+                </View>
+              </View>
+            </View>
+          </View>
+          <ShimmerBlock theme={theme} style={{ height: 110, borderRadius: radii.lg }} />
+          <ShimmerBlock theme={theme} style={{ height: 160, borderRadius: radii.lg }} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -265,60 +284,32 @@ export default function ProviderDetailsScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-      <View
-        style={[
-          {
-            marginBottom: spacing.md,
-            overflow: 'hidden',
-            borderRadius: radii.lg,
-            borderWidth: 1,
-            borderColor: theme.border,
-            backgroundColor: theme.card,
-            padding: spacing.md,
-          },
-          cardShadow,
-        ]}
-      >
-        <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+      <View style={[styles.heroCard, { borderColor: theme.border, backgroundColor: theme.card }, cardShadow]}>
+        <View style={styles.heroTopRow}>
           {provider.imageUrl ? (
             <Image
               source={{ uri: provider.imageUrl }}
-              style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 1, borderColor: theme.border }}
+              style={[styles.heroAvatar, { borderColor: theme.border }]}
             />
           ) : (
-            <View
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 32,
-                borderWidth: 1,
-                borderColor: theme.border,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: theme.text, fontWeight: '800' }}>
+            <View style={[styles.heroAvatar, styles.heroAvatarFallback, { borderColor: theme.border, backgroundColor: theme.secondary }]}>
+              <Text style={styles.heroAvatarInitials}>
                 {getInitials(provider.name)}
               </Text>
             </View>
           )}
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: theme.text, fontSize: 18, fontWeight: '800' }}>
-              {provider.name}
-            </Text>
-            <Text style={[ui.caption(theme), { marginTop: 4 }]}>
-              {provider.providerType} • {provider.city || 'Unknown city'}
+          <View style={styles.heroMain}>
+            <Text style={[styles.heroName, { color: theme.text }]}>{provider.name}</Text>
+            <Text style={[ui.caption(theme), { marginTop: spacing.xs }]}>
+              {provider.city || 'Unknown city'}{provider.workingHours ? ` • ${provider.workingHours}` : ''}
             </Text>
             {provider.hourlyRate === 0 ? (
-              <Text style={[ui.caption(theme), { marginTop: 4, fontWeight: '700' }]}>Free</Text>
+              <Text style={[styles.heroRate, { color: theme.text }]}>Free</Text>
             ) : provider.hourlyRate ? (
-              <Text style={[ui.caption(theme), { marginTop: 4, fontWeight: '700' }]}>
+              <Text style={[styles.heroRate, { color: theme.text }]}>
                 ₦{Number(provider.hourlyRate).toLocaleString()}/hour
               </Text>
             ) : null}
-            <Text style={[ui.caption(theme), { marginTop: 4 }]}>
-              {provider.isOpenNow ? 'Open now' : 'Closed'} • {provider.workingHours || 'Hours not set'}
-            </Text>
           </View>
         </View>
       </View>
@@ -365,35 +356,38 @@ export default function ProviderDetailsScreen() {
           <View style={{ gap: spacing.sm }}>
             {provider.canBook ? (
               <TouchableOpacity
-                style={[ui.buttonPrimary(theme), { borderRadius: radii.lg, minHeight: 50, justifyContent: 'center' }]}
+                style={[ui.buttonPrimary(theme), styles.fullWidthBtn]}
                 onPress={() =>
-                  router.push({
-                    pathname: '/(app)/book-appointment',
-                    params: {
-                      providerId: provider._id,
-                      providerName: provider.name,
-                      ...(appointmentServiceNote ? { prefillNote: appointmentServiceNote } : {}),
-                    },
-                  })
+                  {
+                    hapticTap();
+                    router.push({
+                      pathname: '/(app)/book-appointment',
+                      params: {
+                        providerId: provider._id,
+                        providerName: provider.name,
+                        ...(appointmentServiceNote ? { prefillNote: appointmentServiceNote } : {}),
+                      },
+                    });
+                  }
                 }
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
                   <Ionicons name="calendar" size={20} color={theme.primaryForeground} />
-                  <Text adjustsFontSizeToFit style={ui.buttonTextPrimary(theme)}>Book appointment</Text>
+                  <Text style={ui.buttonTextPrimary(theme)}>Book appointment</Text>
                 </View>
               </TouchableOpacity>
             ) : null}
             {catalog.length > 0 ? (
               <TouchableOpacity
-                style={[
-                  ui.buttonOutline(theme),
-                  { borderRadius: radii.lg, minHeight: 50, justifyContent: 'center', borderWidth: 2 },
-                ]}
-                onPress={goShop}
+                style={[ui.buttonOutline(theme), styles.fullWidthBtn]}
+                onPress={() => {
+                  hapticTap();
+                  goShop();
+                }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
-                  <Ionicons name="bag-handle-outline" size={22} color={theme.primary} />
-                  <Text style={[ui.buttonText(theme), { color: theme.primary, fontWeight: '800' }]}>Go to shop</Text>
+                  <Ionicons name="bag-handle-outline" size={20} color={theme.text} />
+                  <Text style={ui.buttonText(theme)}>Go to shop</Text>
                 </View>
               </TouchableOpacity>
             ) : null}
@@ -422,21 +416,19 @@ export default function ProviderDetailsScreen() {
           {[provider.city, provider.country].filter(Boolean).join(', ') || '—'}
         </Text>
         {coords ? (
-          <>
-            <Text style={[ui.caption(theme), { color: theme.subtleText, marginBottom: spacing.sm }]}>
-              GPS: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
-            </Text>
-            <TouchableOpacity
-              style={[ui.buttonOutline(theme), { alignSelf: 'flex-start' }]}
-              onPress={() =>
+          <TouchableOpacity
+            style={[ui.buttonOutline(theme), styles.fullWidthBtn]}
+            onPress={() =>
+              {
+                hapticTap();
                 Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`).catch(
                   () => {}
-                )
+                );
               }
-            >
-              <Text style={ui.buttonText(theme)}>Open in Maps</Text>
-            </TouchableOpacity>
-          </>
+            }
+          >
+            <Text style={ui.buttonText(theme)}>Open in Maps</Text>
+          </TouchableOpacity>
         ) : (
           <Text style={ui.caption(theme)}>Coordinates not available</Text>
         )}
@@ -508,7 +500,13 @@ export default function ProviderDetailsScreen() {
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }}>
             <Text style={ui.caption(theme)}>Open now</Text>
-            <Switch value={edit.isOpenNow} onValueChange={(v) => setEdit((p) => ({ ...p, isOpenNow: v }))} />
+            <Switch
+              value={edit.isOpenNow}
+              onValueChange={(v) => {
+                hapticToggle();
+                setEdit((p) => ({ ...p, isOpenNow: v }));
+              }}
+            />
           </View>
 
           <TextInput
@@ -673,12 +671,12 @@ export default function ProviderDetailsScreen() {
             style={[ui.input(theme), { marginBottom: spacing.sm }]}
           />
 
-          <TouchableOpacity style={[ui.buttonPrimary(theme), { marginTop: spacing.sm }]} onPress={saveMine} disabled={saving}>
+          <TouchableOpacity style={[ui.buttonPrimary(theme), styles.fullWidthBtn, { marginTop: spacing.sm }]} onPress={saveMine} disabled={saving}>
             <Text style={ui.buttonTextPrimary(theme)}>{saving ? 'Saving...' : 'Save changes'}</Text>
           </TouchableOpacity>
           {(edit.productRows || []).length > 0 ? (
             <TouchableOpacity
-              style={[ui.buttonOutline(theme), { marginTop: spacing.sm, borderRadius: radii.lg }]}
+              style={[ui.buttonOutline(theme), styles.fullWidthBtn, { marginTop: spacing.sm }]}
               onPress={goShop}
             >
               <Text style={ui.buttonText(theme)}>Preview storefront</Text>
@@ -696,14 +694,11 @@ export default function ProviderDetailsScreen() {
           <Text style={[ui.caption(theme), { marginBottom: spacing.md }]}>
             Confirm or reschedule patient requests.
           </Text>
-          <TouchableOpacity
-            style={[ui.buttonOutline(theme), { alignSelf: 'flex-start' }]}
-            onPress={() => router.push('/(app)/provider-appointments')}
-          >
+          <TouchableOpacity style={[ui.buttonOutline(theme), styles.fullWidthBtn]} onPress={() => router.push('/(app)/provider-appointments')}>
             <Text style={ui.buttonText(theme)}>Open provider inbox</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[ui.buttonOutline(theme), { alignSelf: 'flex-start', marginTop: spacing.sm }]}
+            style={[ui.buttonOutline(theme), styles.fullWidthBtn, { marginTop: spacing.sm }]}
             onPress={() => router.push('/(app)/provider-orders')}
           >
             <Text style={ui.buttonText(theme)}>Sales & orders</Text>
@@ -711,17 +706,17 @@ export default function ProviderDetailsScreen() {
         </View>
       ) : null}
 
-      <View style={[ui.card(theme), { marginBottom: spacing.md }]}>
+      <View style={[ui.card(theme), styles.contactCard, { marginBottom: spacing.md }]}>
         <Text style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.sm }]}>Contact</Text>
 
-        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-          <TouchableOpacity style={[ui.buttonOutline(theme), { flex: 1, minWidth: 120 }]} onPress={() => handleCall(provider.phone)}>
+        <View style={styles.contactActions}>
+          <TouchableOpacity style={[ui.buttonOutline(theme), styles.contactBtn]} onPress={() => handleCall(provider.phone)}>
             <Text style={ui.buttonText(theme)}>Call</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[ui.buttonOutline(theme), { flex: 1, minWidth: 120 }]} onPress={() => handleWhatsApp(provider.phone)}>
+          <TouchableOpacity style={[ui.buttonOutline(theme), styles.contactBtn]} onPress={() => handleWhatsApp(provider.phone)}>
             <Text style={ui.buttonText(theme)}>WhatsApp</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[ui.buttonOutline(theme), { flex: 1, minWidth: 120 }]} onPress={handleChat}>
+          <TouchableOpacity style={[ui.buttonOutline(theme), styles.contactBtn]} onPress={handleChat}>
             <Text style={ui.buttonText(theme)}>{provider.canChat ? 'Chat' : 'Chat (locked)'}</Text>
           </TouchableOpacity>
         </View>
@@ -732,6 +727,24 @@ export default function ProviderDetailsScreen() {
 }
 
 const styles = {
+  heroCard: {
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: spacing.md,
+  },
+  heroTopRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
+  heroAvatar: { width: 70, height: 70, borderRadius: 35, borderWidth: 1 },
+  heroAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  heroAvatarInitials: { fontSize: 22, fontWeight: '800' },
+  heroMain: { flex: 1 },
+  heroName: { fontSize: 20, fontWeight: '800' },
+  fullWidthBtn: { width: '100%' },
+  heroRate: { marginTop: spacing.xs, fontSize: 13, fontWeight: '700' },
+  contactCard: { padding: spacing.lg },
+  contactActions: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  contactBtn: { flex: 1, minWidth: 120 },
   pillsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',

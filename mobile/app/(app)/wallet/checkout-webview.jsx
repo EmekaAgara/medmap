@@ -18,6 +18,7 @@ import {
   clearCheckoutSession,
 } from '../../../src/wallet/checkoutSession';
 import { ui, spacing, typography } from '../../../theme/tokens';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const POLL_MS = 2200;
 const MAX_POLLS = 100;
@@ -61,8 +62,10 @@ export default function CheckoutWebViewScreen() {
   const router = useRouter();
   const { token } = useAuth();
   const { theme } = useThemeMode();
+  const insets = useSafeAreaInsets();
   const [session, setSession] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [webLoading, setWebLoading] = useState(true);
   const [error, setError] = useState('');
   const pollCount = useRef(0);
   const settled = useRef(false);
@@ -203,8 +206,17 @@ export default function CheckoutWebViewScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.flex} edges={['top']}>
-      <View style={[styles.headerRow, { backgroundColor: theme.card, borderBottomColor: theme.border }]}>
+    <SafeAreaView style={[styles.flex, { backgroundColor: theme.background }]} edges={['left', 'right']}>
+      <View
+        style={[
+          styles.headerRow,
+          {
+            backgroundColor: theme.card,
+            borderBottomColor: theme.border,
+            paddingTop: insets.top + spacing.sm,
+          },
+        ]}
+      >
         <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={26} color={theme.text} />
         </TouchableOpacity>
@@ -244,8 +256,15 @@ export default function CheckoutWebViewScreen() {
         domStorageEnabled
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
+        onLoadStart={() => setWebLoading(true)}
+        onLoadEnd={() => setWebLoading(false)}
         style={styles.flex}
       />
+      {webLoading ? (
+        <View style={styles.webLoadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="small" color={theme.subtleText} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -256,9 +275,18 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { padding: spacing.xs },
+  webLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

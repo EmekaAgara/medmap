@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,18 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth, useThemeMode } from '../../../_layout';
 import ScreenHeader from '../../../components/ScreenHeader';
 import { apiRequest } from '../../../../src/api/client';
 import { ui, spacing } from '../../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../../components/Shimmer';
 
 export default function NotificationsTab() {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const { theme } = useThemeMode();
+  const router = useRouter();
   const [items, setItems] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -57,15 +59,33 @@ export default function NotificationsTab() {
     }
   };
 
-  const markOneRead = async (id) => {
-    try {
-      await apiRequest(`/notifications/mine/${id}/read`, {
-        method: 'POST',
-        token,
-      });
-      await load();
-    } catch (e) {
-      setError(e.message || 'Could not update notification');
+  const openNotification = async (n) => {
+    const id = String(n?._id || '');
+    if (id && !n.readAt) {
+      try {
+        await apiRequest(`/notifications/mine/${id}/read`, { method: 'POST', token });
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const d = n?.data || {};
+    const t = d.type || n?.type;
+    if (t === 'order' && d.orderId) {
+      router.push({ pathname: '/(app)/orders/[id]', params: { id: String(d.orderId) } });
+      return;
+    }
+    if (t === 'appointment' && d.appointmentId) {
+      router.push({ pathname: '/(app)/appointments/[id]', params: { id: String(d.appointmentId) } });
+      return;
+    }
+    if (t === 'message' && d.conversationId) {
+      router.push({ pathname: '/(app)/provider-chat', params: { conversationId: String(d.conversationId) } });
+      return;
+    }
+    if (t === 'wallet') {
+      router.push('/(app)/wallet');
+      return;
     }
   };
 
@@ -73,7 +93,8 @@ export default function NotificationsTab() {
     <ScrollView style={ui.screen(theme)}>
       <ScreenHeader
         title="Notifications"
-        showBack={false}
+        showBack
+        style={{ marginTop: spacing.lg }}
         right={
           <TouchableOpacity
             onPress={markAllRead}
@@ -85,7 +106,16 @@ export default function NotificationsTab() {
         }
       />
 
-      {loading ? <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.md }} /> : null}
+      {loading ? (
+        <View style={{ marginTop: spacing.sm, gap: spacing.sm, paddingHorizontal: spacing.sm }}>
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <View key={`notif-shimmer-${idx}`} style={[styles.row, { borderColor: theme.border, backgroundColor: theme.card }]}>
+              <ShimmerBlock theme={theme} style={{ height: 14, width: '45%', marginBottom: spacing.xs }} />
+              <ShimmerText theme={theme} lines={2} />
+            </View>
+          ))}
+        </View>
+      ) : null}
       {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
 
       {!loading && items.length === 0 ? (
@@ -93,35 +123,39 @@ export default function NotificationsTab() {
       ) : null}
 
       {!loading && unreadCount > 0 ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md }}>
-          <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: theme.primary }} />
+        <View style={[styles.unreadWrap, { paddingHorizontal: spacing.sm }]}>
+          <View style={[styles.unreadDot, { backgroundColor: theme.error }]} />
           <Text style={ui.caption(theme)}>{unreadCount} unread</Text>
         </View>
       ) : null}
 
       {items.map((n) => {
         const isRead = !!n.readAt;
+        const senderName = n?.data?.senderName;
+        const titleText =
+          n?.type === 'message' && senderName && !String(n.title || '').toLowerCase().includes(String(senderName).toLowerCase())
+            ? `${n.title} · ${senderName}`
+            : n.title;
         return (
           <TouchableOpacity
             key={String(n._id)}
-            onPress={() => (!isRead ? markOneRead(String(n._id)) : null)}
+            onPress={() => openNotification(n)}
             style={[
+              styles.row,
               {
-                paddingVertical: spacing.md,
-                paddingHorizontal: spacing.lg,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.border,
-                backgroundColor: isRead ? 'transparent' : theme.primary + '10',
+                borderColor: theme.border,
+                backgroundColor: theme.card,
+                marginHorizontal: spacing.sm,
               },
             ]}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: theme.text, fontWeight: '700' }}>{n.title}</Text>
-                <Text style={[ui.caption(theme), { marginTop: 4 }]}>{n.body}</Text>
+            <View style={styles.rowTop}>
+              <View style={styles.rowBody}>
+                <Text style={styles.title(theme)}>{titleText}</Text>
+                <Text style={[ui.caption(theme), { marginTop: spacing.xs }]}>{n.body}</Text>
               </View>
               {!isRead ? (
-                <View style={{ width: 10, height: 10, borderRadius: 999, backgroundColor: theme.primary, marginTop: 6 }} />
+                <View style={[styles.rowUnreadDot, { backgroundColor: theme.error }]} />
               ) : null}
             </View>
           </TouchableOpacity>
@@ -131,4 +165,20 @@ export default function NotificationsTab() {
     </ScrollView>
   );
 }
+
+const styles = {
+  unreadWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  unreadDot: { width: spacing.sm, height: spacing.sm, borderRadius: 999 },
+  row: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderRadius: 12,
+    marginBottom: spacing.sm,
+  },
+  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
+  rowBody: { flex: 1 },
+  rowUnreadDot: { width: 10, height: 10, borderRadius: 999, marginTop: 6 },
+  title: (theme) => ({ color: theme.text, fontWeight: '700' }),
+};
 

@@ -6,6 +6,7 @@ import { useAuth, useThemeMode } from '../../../_layout';
 import ScreenHeader from '../../../components/ScreenHeader';
 import { apiRequest } from '../../../../src/api/client';
 import { ui, spacing, typography, radii } from '../../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../../components/Shimmer';
 
 function txLabel(t) {
   const map = {
@@ -62,7 +63,10 @@ export default function WalletTransactionDetailScreen() {
     return (
       <SafeAreaView style={ui.screen(theme)} edges={['top']}>
         <ScreenHeader title="Transaction" onBack={() => router.back()} />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
+        <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+          <ShimmerBlock theme={theme} style={{ height: 110, borderRadius: radii.lg }} />
+          <ShimmerText theme={theme} lines={3} />
+        </View>
       </SafeAreaView>
     );
   }

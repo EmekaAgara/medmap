@@ -223,10 +223,9 @@ export default function RootLayout() {
 }
 
 function ThemedRoot() {
-  const { mode } = useThemeMode();
   return (
     <>
-      <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
+      <StatusBar hidden />
       <Slot />
     </>
   );

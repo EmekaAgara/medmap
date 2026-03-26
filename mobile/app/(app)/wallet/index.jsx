@@ -18,6 +18,7 @@ import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
 import { beginInAppCheckout } from '../../../src/wallet/checkoutSession';
 import { ui, spacing, typography, radii, layout } from '../../../theme/tokens';
+import { ShimmerBlock, ShimmerText } from '../../components/Shimmer';
 
 const PRESETS = [5000, 10000, 20000, 50000, 100000];
 
@@ -196,7 +197,15 @@ export default function WalletHomeScreen() {
     return (
       <SafeAreaView style={ui.screen(theme)} edges={['top']}>
         <ScreenHeader title="Wallet" onBack={() => router.back()} />
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
+        <View style={{ gap: spacing.md }}>
+          <ShimmerBlock theme={theme} style={{ height: 150, borderRadius: radii.xl }} />
+          <ShimmerBlock theme={theme} style={{ height: 56, borderRadius: radii.lg }} />
+          <View style={[ui.card(theme), { gap: spacing.sm }]}>
+            <ShimmerText theme={theme} lines={2} />
+            <ShimmerText theme={theme} lines={2} />
+            <ShimmerText theme={theme} lines={2} />
+          </View>
+        </View>
       </SafeAreaView>
     );
   }

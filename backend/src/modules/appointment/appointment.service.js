@@ -4,6 +4,7 @@ const walletService = require('../wallet/wallet.service');
 const { notifyUserPush } = require('../../utils/push');
 const { emitToUser } = require('../../realtime/emit');
 const notificationsService = require('../notifications/notifications.service');
+const { notifyUser } = require('../../utils/notify');
 
 const DEFAULT_SLOT_MS = 30 * 60 * 1000;
 
@@ -175,12 +176,15 @@ async function confirmAppointment(ownerUserId, appointmentId, { confirmedStart, 
     body: `Your visit was confirmed for ${start.toISOString().slice(0, 16).replace('T', ' ')}.`,
     data: { type: 'appointment', appointmentId: String(appt._id), status: 'confirmed' },
   });
-  await notificationsService.createNotification({
+  await notifyUser({
     userId: appt.patientUser,
     type: 'appointment',
     title: 'Appointment confirmed',
     body: `Your visit was confirmed for ${start.toISOString().slice(0, 16).replace('T', ' ')}.`,
-    data: { appointmentId: String(appt._id), status: 'confirmed' },
+    data: { type: 'appointment', appointmentId: String(appt._id), status: 'confirmed' },
+    push: true,
+    email: true,
+    emailSubject: 'Your appointment is confirmed',
   });
   emitToUser(String(appt.patientUser), 'appointment:updated', { appointment: lean });
 
@@ -215,12 +219,15 @@ async function rejectAppointment(ownerUserId, appointmentId, { rejectReason }) {
     body: reason.slice(0, 120),
     data: { type: 'appointment', appointmentId: String(appt._id), status: 'rejected' },
   });
-  await notificationsService.createNotification({
+  await notifyUser({
     userId: appt.patientUser,
     type: 'appointment',
     title: 'Appointment declined',
     body: reason.slice(0, 120),
-    data: { appointmentId: String(appt._id), status: 'rejected' },
+    data: { type: 'appointment', appointmentId: String(appt._id), status: 'rejected' },
+    push: true,
+    email: true,
+    emailSubject: 'Appointment update',
   });
   emitToUser(String(appt.patientUser), 'appointment:updated', { appointment: lean });
 
@@ -261,12 +268,14 @@ async function cancelAppointment(userId, appointmentId, { cancelReason }) {
     body: isPatient ? 'The patient cancelled the visit.' : 'The provider cancelled the visit.',
     data: { type: 'appointment', appointmentId: String(appt._id), status: 'cancelled' },
   });
-  await notificationsService.createNotification({
+  await notifyUser({
     userId: otherId,
     type: 'appointment',
     title: 'Appointment cancelled',
     body: isPatient ? 'The patient cancelled the visit.' : 'The provider cancelled the visit.',
-    data: { appointmentId: String(appt._id), status: 'cancelled' },
+    data: { type: 'appointment', appointmentId: String(appt._id), status: 'cancelled' },
+    push: true,
+    email: false,
   });
   emitToUser(String(otherId), 'appointment:updated', { appointment: lean });
 
@@ -310,12 +319,14 @@ async function rescheduleAppointment(userId, appointmentId, { requestedStart, re
     body: 'New times were proposed. Please confirm in MedMap.',
     data: { type: 'appointment', appointmentId: String(appt._id), status: 'pending' },
   });
-  await notificationsService.createNotification({
+  await notifyUser({
     userId: notifyId,
     type: 'appointment',
     title: 'Appointment reschedule requested',
     body: 'New times were proposed. Please confirm in MedMap.',
-    data: { appointmentId: String(appt._id), status: 'pending' },
+    data: { type: 'appointment', appointmentId: String(appt._id), status: 'pending' },
+    push: true,
+    email: false,
   });
   emitToUser(String(notifyId), 'appointment:updated', { appointment: lean });
 
