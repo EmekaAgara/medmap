@@ -25,9 +25,10 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ONBOARDING_KEY = "medmap_onboarding_done";
 const SLIDE_ICON = require("../../assets/icon.png");
 const SLIDE_IMAGES = {
-  2: require("../../assets/wallet_black.png"),
-  3: require("../../assets/send_money.png"),
-  4: require("../../assets/agreement.png"),
+  1: require("../../assets/splashicons/Providers.png"),
+  2: require("../../assets/splashicons/care.png"),
+  3: require("../../assets/splashicons/chat.png"),
+  4: require("../../assets/splashicons/pay.png"),
 };
 const ICON_SIZE = 120;
 const IMAGE_SIZE = Math.min(SCREEN_WIDTH - 48, 280);
@@ -464,7 +465,7 @@ function AnimatedSlideImage({
             source={source}
             style={[
               styles.slideImage,
-              { width: IMAGE_SIZE, height: IMAGE_SIZE * 1.1 },
+              { width: IMAGE_SIZE * 1.5, height: IMAGE_SIZE * 1.65 },
             ]}
             resizeMode="contain"
           />
@@ -509,26 +510,14 @@ function SlideItem({ item, index, scrollX, theme, currentIndex }) {
     >
       <View style={styles.topSection}>
         <View style={styles.imageCenterWrap}>
-          {item.id === "1" && (
-            <FloatingGlassCards
-              opacity={opacity}
-              scale={scale}
-              translateY={translateY}
-              theme={theme}
-              slideIndex={index}
-              currentIndex={currentIndex}
-            />
-          )}
-          {(item.id === "2" || item.id === "3" || item.id === "4") && (
-            <AnimatedSlideImage
-              opacity={opacity}
-              scale={scale}
-              translateY={translateY}
-              slideIndex={index}
-              currentIndex={currentIndex}
-              source={SLIDE_IMAGES[item.id]}
-            />
-          )}
+          <AnimatedSlideImage
+            opacity={opacity}
+            scale={scale}
+            translateY={translateY}
+            slideIndex={index}
+            currentIndex={currentIndex}
+            source={SLIDE_IMAGES[item.id]}
+          />
         </View>
       </View>
     </Animated.View>

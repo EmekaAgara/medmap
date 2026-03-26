@@ -1,18 +1,18 @@
-import { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
-import { apiRequest } from '../../../../lib/api';
-import { useThemeMode } from '../../../_layout';
-import { ui, spacing } from '../../../../theme/tokens';
+import { useEffect, useState } from "react";
+import { View, Text } from "react-native";
+import { apiRequest } from "../../../../lib/api";
+import { useThemeMode } from "../../../_layout";
+import { ui, spacing } from "../../../../theme/tokens";
 
 export default function CreditScoreScreen() {
   const [score, setScore] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const { theme } = useThemeMode();
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiRequest('/credit/score', { method: 'GET' });
+        const res = await apiRequest("/credit/score", { method: "GET" });
         setScore(res.data);
       } catch (e) {
         setError(e.message);
@@ -28,10 +28,14 @@ export default function CreditScoreScreen() {
       ) : null}
       {score ? (
         <View style={[ui.card(theme), styles.cardTop]}>
-          <Text style={[ui.h1(theme), styles.scoreValue, { color: theme.primary }]}>
+          <Text
+            style={[ui.h1(theme), styles.scoreValue, { color: theme.primary }]}
+          >
             {score.score}
           </Text>
-          <Text style={[ui.body(theme), styles.labelTop]}>{score.riskRating}</Text>
+          <Text style={[ui.body(theme), styles.labelTop]}>
+            {score.riskRating}
+          </Text>
         </View>
       ) : !error ? (
         <Text style={ui.caption(theme)}>Loading...</Text>

@@ -9,7 +9,7 @@ export default function ScreenHeader({
   showBack = true,
   onBack,
   right = null,
-  titleAlign = 'center',
+  titleAlign = "center",
   left = null,
   compact = false,
   style = null,
@@ -18,7 +18,10 @@ export default function ScreenHeader({
   const { theme } = useThemeMode();
 
   const handleBack = () => {
-    if (onBack) { onBack(); return; }
+    if (onBack) {
+      onBack();
+      return;
+    }
     if (router.canGoBack()) {
       router.back();
     } else {
@@ -27,7 +30,13 @@ export default function ScreenHeader({
   };
 
   return (
-    <View style={[ui.screenHeader(theme), compact ? { marginBottom: 0 } : null, style]}>
+    <View
+      style={[
+        ui.screenHeader(theme),
+        compact ? { marginBottom: 0 } : null,
+        style,
+      ]}
+    >
       {showBack ? (
         <TouchableOpacity
           onPress={handleBack}
@@ -36,10 +45,14 @@ export default function ScreenHeader({
         >
           <Ionicons name="chevron-back" size={22} color={theme.text} />
         </TouchableOpacity>
+      ) : left ? (
+        left
       ) : (
-        left ? left : <View style={styles.backPlaceholder} />
+        <View style={styles.backPlaceholder} />
       )}
-      <Text style={[ui.screenHeaderTitle(theme), { textAlign: titleAlign }]}>{title}</Text>
+      <Text style={[ui.screenHeaderTitle(theme), { textAlign: titleAlign }]}>
+        {title}
+      </Text>
       {right ? right : <View style={styles.backPlaceholder} />}
     </View>
   );
