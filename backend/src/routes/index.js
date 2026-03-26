@@ -9,6 +9,7 @@ router.use('/messages', require('../modules/messages/messages.routes'));
 router.use('/appointments', require('../modules/appointment/appointment.routes'));
 router.use('/orders', require('../modules/order/order.routes'));
 router.use('/notifications', require('../modules/notifications/notifications.routes'));
+router.use('/medical', require('../modules/medical/medical.routes'));
 router.use('/kyc',   require('../modules/kyc/kyc.routes'));
 router.use('/admin', require('../modules/admin/admin.routes'));
 router.use('/wallets', require('../modules/wallet/wallet.routes'));

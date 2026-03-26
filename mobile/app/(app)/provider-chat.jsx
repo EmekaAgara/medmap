@@ -48,13 +48,28 @@ export default function ProviderChatScreen() {
 
   useEffect(() => {
     if (!token || !activeConversationId) return;
-    const socket = io(getSocketBaseUrl(), {
+    const base = getSocketBaseUrl();
+    const socket = io(base, {
       path: '/socket.io',
       auth: { token },
       transports: ['websocket', 'polling'],
+      reconnectionAttempts: 8,
+      reconnectionDelay: 1000,
     });
     socket.on('connect', () => {
+      setError('');
       socket.emit('conversation:join', activeConversationId);
+    });
+    socket.on('connect_error', (err) => {
+      const msg = err?.message || 'Could not connect to chat server';
+      setError(
+        `${msg}. Check API is running and EXPO_PUBLIC_API_URL / EXPO_PUBLIC_SOCKET_URL match your machine (see mobile/.env.example).`
+      );
+    });
+    socket.on('disconnect', (reason) => {
+      if (reason === 'io server disconnect') {
+        setError('Chat disconnected by server. Please reopen.');
+      }
     });
     socket.on('message:new', ({ message }) => {
       if (!message?._id) return;
@@ -107,11 +122,15 @@ export default function ProviderChatScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
         {loading ? <ActivityIndicator color={theme.primary} /> : null}
         {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
-        {messages.map((msg) => {
+        {messages.map((msg, idx) => {
           const mine = String(msg.from) === String(user?.id);
+          const key =
+            msg?._id ||
+            msg?.id ||
+            `${msg?.conversationId || activeConversationId || 'conv'}:${msg?.from || 'u'}:${msg?.createdAt || msg?.timestamp || 't'}:${idx}`;
           return (
             <View
-              key={msg._id}
+              key={key}
               style={[
                 styles.bubble,
                 {

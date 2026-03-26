@@ -2,7 +2,7 @@ import { useEffect, useState, createContext, useContext } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, StyleSheet, Appearance } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Appearance, DeviceEventEmitter } from 'react-native';
 import {
   useFonts,
   Montserrat_400Regular,
@@ -11,7 +11,12 @@ import {
   Montserrat_700Bold,
 } from '@expo-google-fonts/montserrat';
 import { lightTheme, darkTheme, typography, spacing } from '../theme/tokens';
-import { apiRequest, saveAuthSession, clearAuthSession } from '../src/api/client';
+import {
+  apiRequest,
+  saveAuthSession,
+  clearAuthSession,
+  MEDMAP_AUTH_REFRESH_EVENT,
+} from '../src/api/client';
 import { registerPushAndSync } from '../src/notifications/registerPush';
 
 const AuthContext = createContext(null);
@@ -136,6 +141,18 @@ function AuthProvider({ children }) {
     if (!auth.token) return;
     registerPushAndSync(auth.token).catch(() => {});
   }, [auth.token]);
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(MEDMAP_AUTH_REFRESH_EVENT, (payload) => {
+      setAuth((prev) => ({
+        ...prev,
+        token: payload.accessToken,
+        refreshToken: payload.refreshToken ?? prev.refreshToken,
+        deviceId: payload.deviceId ?? prev.deviceId,
+      }));
+    });
+    return () => sub.remove();
+  }, []);
 
   const signIn = async (payload) => {
     const next = {

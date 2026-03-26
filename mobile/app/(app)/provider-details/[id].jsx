@@ -10,37 +10,20 @@ import {
   Image,
   Alert,
   Switch,
+  Platform,
+  StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth, useThemeMode } from '../../_layout';
 import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
-import { ui, spacing } from '../../../theme/tokens';
-
-function normalizeCatalogProducts(raw) {
-  if (!raw?.length) return [];
-  return raw
-    .map((p) => {
-      if (typeof p === 'string') {
-        const t = p.trim();
-        return t ? { name: t, price: 0 } : null;
-      }
-      if (p && typeof p === 'object' && p.name != null) {
-        const name = String(p.name).trim();
-        if (!name) return null;
-        return { name, price: Math.max(0, Number(p.price) || 0) };
-      }
-      return null;
-    })
-    .filter(Boolean);
-}
+import { ui, spacing, radii, shadows } from '../../../theme/tokens';
+import { normalizeCatalogProducts } from '../../../src/utils/catalog';
 
 function serviceKey(name) {
   return `s:${encodeURIComponent(name)}`;
-}
-
-function productKey(p) {
-  return `p:${encodeURIComponent(p.name)}:${p.price}`;
 }
 
 function labelForSelectionKey(key) {
@@ -57,18 +40,13 @@ function labelForSelectionKey(key) {
   return key;
 }
 
-function orderLinesFromSelectedKeys(selectedKeys) {
-  return selectedKeys
-    .filter((k) => k.startsWith('p:'))
-    .map((k) => {
-      const rest = k.slice(2);
-      const i = rest.lastIndexOf(':');
-      if (i <= 0) return null;
-      const name = decodeURIComponent(rest.slice(0, i));
-      if (!name) return null;
-      return { name, quantity: 1 };
-    })
-    .filter(Boolean);
+function providerLatLng(p) {
+  const c = p?.location?.coordinates;
+  if (!c || c.length < 2) return null;
+  const lng = Number(c[0]);
+  const lat = Number(c[1]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
 }
 
 export default function ProviderDetailsScreen() {
@@ -83,10 +61,11 @@ export default function ProviderDetailsScreen() {
   const [mine, setMine] = useState(null);
   const [saving, setSaving] = useState(false);
   const [edit, setEdit] = useState(null);
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [ordering, setOrdering] = useState(false);
+  const [selectedServiceKeys, setSelectedServiceKeys] = useState([]);
   const [editProductName, setEditProductName] = useState('');
   const [editProductPrice, setEditProductPrice] = useState('');
+  const [editProductDescription, setEditProductDescription] = useState('');
+  const [editProductImageUrl, setEditProductImageUrl] = useState('');
 
   const load = async () => {
     try {
@@ -122,83 +101,22 @@ export default function ProviderDetailsScreen() {
 
   const canManage = !!(provider && mine && String(mine._id) === String(provider._id));
   const canRequestItems = user?.accountType === 'patient' && !!provider?.canBook;
-  const selectedSet = new Set(selectedItems);
+  const serviceSelectSet = new Set(selectedServiceKeys);
 
   const catalog = useMemo(() => normalizeCatalogProducts(provider?.products || []), [provider?.products]);
 
   useEffect(() => {
-    setSelectedItems([]);
+    setSelectedServiceKeys([]);
   }, [provider?._id]);
 
-  const toggleSelectedItem = (key) => {
-    setSelectedItems((prev) => {
-      if (prev.includes(key)) return prev.filter((x) => x !== key);
-      return [...prev, key];
-    });
+  const toggleServiceKey = (sk) => {
+    setSelectedServiceKeys((prev) => (prev.includes(sk) ? prev.filter((x) => x !== sk) : [...prev, sk]));
   };
 
-  const requestNote = selectedItems.length
-    ? `Requested items: ${selectedItems.map(labelForSelectionKey).join(', ')}`
-    : '';
-  const selectedPreview = selectedItems.length
-    ? `${selectedItems.slice(0, 3).map(labelForSelectionKey).join(', ')}${
-        selectedItems.length > 3 ? ` +${selectedItems.length - 3} more` : ''
-      }`
-    : 'None';
-
-  const selectedOrderLines = useMemo(() => orderLinesFromSelectedKeys(selectedItems), [selectedItems]);
-
-  const checkoutSelectedProducts = async () => {
-    if (!token || !provider?._id) {
-      Alert.alert('Sign in required', 'Log in to purchase products.');
-      return;
-    }
-    if (!selectedOrderLines.length) {
-      Alert.alert('Select products', 'Tap product pills to add them to your cart.');
-      return;
-    }
-    try {
-      setOrdering(true);
-      const res = await apiRequest('/orders', {
-        method: 'POST',
-        token,
-        body: { providerId: provider._id, lines: selectedOrderLines },
-      });
-      const pack = res.data;
-      const order = pack?.order;
-      const payment = pack?.payment;
-
-      if (payment?.paymentLink) {
-        Alert.alert(
-          'Complete payment',
-          'Your wallet balance was short. Add funds to finish checkout.',
-          [
-            { text: 'Later', style: 'cancel', onPress: () => order?._id && router.push({ pathname: '/(app)/orders/[id]', params: { id: String(order._id) } }) },
-            {
-              text: 'Pay now',
-              onPress: () => {
-                Linking.openURL(payment.paymentLink).catch(() => {});
-                if (order?._id) {
-                  router.push({ pathname: '/(app)/orders/[id]', params: { id: String(order._id) } });
-                }
-              },
-            },
-          ]
-        );
-        return;
-      }
-
-      if (order?._id) {
-        Alert.alert('Order placed', payment?.method === 'wallet' ? 'Paid from your wallet.' : 'Your order is confirmed.', [
-          { text: 'OK', onPress: () => router.push({ pathname: '/(app)/orders/[id]', params: { id: String(order._id) } }) },
-        ]);
-      }
-    } catch (e) {
-      Alert.alert('Checkout failed', e.message || 'Could not place order');
-    } finally {
-      setOrdering(false);
-    }
-  };
+  const appointmentServiceNote =
+    selectedServiceKeys.length > 0
+      ? `Services to discuss: ${selectedServiceKeys.map(labelForSelectionKey).join(', ')}`
+      : '';
 
   useEffect(() => {
     if (!canManage || !provider) return;
@@ -213,6 +131,8 @@ export default function ProviderDetailsScreen() {
     });
     setEditProductName('');
     setEditProductPrice('');
+    setEditProductDescription('');
+    setEditProductImageUrl('');
   }, [canManage, provider]);
 
   const saveMine = async () => {
@@ -237,7 +157,12 @@ export default function ProviderDetailsScreen() {
           workingHours: edit.workingHours.trim(),
           availabilityText: edit.availabilityText.trim(),
           services: edit.services.trim(),
-          products: (edit.productRows || []).map((p) => ({ name: p.name, price: p.price })),
+          products: (edit.productRows || []).map((p) => {
+            const o = { name: p.name, price: p.price };
+            if (p.description?.trim()) o.description = p.description.trim();
+            if (p.imageUrl?.trim()) o.imageUrl = p.imageUrl.trim();
+            return o;
+          }),
           location: location
             ? {
                 longitude: Number(location[0]),
@@ -295,26 +220,65 @@ export default function ProviderDetailsScreen() {
 
   if (loading) {
     return (
-      <View style={ui.screen(theme)}>
-        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} />
-      </View>
+      <SafeAreaView style={[ui.screen(theme), { flex: 1 }]} edges={['top']}>
+        <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.xl }} />
+      </SafeAreaView>
     );
   }
 
   if (!provider) {
     return (
-      <View style={ui.screen(theme)}>
+      <SafeAreaView style={[ui.screen(theme), { flex: 1 }]} edges={['top']}>
         <ScreenHeader title="Provider" onBack={() => router.back()} />
-        <Text style={ui.errorText(theme)}>{error || 'Provider not found'}</Text>
-      </View>
+        <Text style={[ui.errorText(theme), { margin: spacing.md }]}>{error || 'Provider not found'}</Text>
+      </SafeAreaView>
     );
   }
 
-  return (
-    <ScrollView style={ui.screen(theme)} contentContainerStyle={{ paddingBottom: spacing['2xl'] }}>
-      <ScreenHeader title={provider.name || 'Provider'} onBack={() => router.back()} />
+  const coords = providerLatLng(provider);
+  const cardShadow = Platform.OS === 'ios' ? shadows.cardDark : { elevation: 5 };
 
-      <View style={[ui.card(theme), { marginBottom: spacing.md, overflow: 'hidden' }]}>
+  const goShop = () => {
+    router.push({
+      pathname: '/(app)/provider-shop/[providerId]',
+      params: { providerId: String(provider._id) },
+    });
+  };
+
+  return (
+    <SafeAreaView style={[ui.screen(theme), { flex: 1 }]} edges={['top']}>
+      <View
+        style={{
+          backgroundColor: theme.background,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.border,
+        }}
+      >
+        <ScreenHeader title={provider.name || 'Provider'} onBack={() => router.back()} />
+      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.md,
+          paddingTop: spacing.md,
+          paddingBottom: spacing['3xl'],
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+      <View
+        style={[
+          {
+            marginBottom: spacing.md,
+            overflow: 'hidden',
+            borderRadius: radii.lg,
+            borderWidth: 1,
+            borderColor: theme.border,
+            backgroundColor: theme.card,
+            padding: spacing.md,
+          },
+          cardShadow,
+        ]}
+      >
         <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
           {provider.imageUrl ? (
             <Image
@@ -360,20 +324,146 @@ export default function ProviderDetailsScreen() {
       </View>
 
       {provider.availabilityText ? (
-        <Text style={[ui.caption(theme), { marginBottom: spacing.md }]}>
-          Availability: {provider.availabilityText}
-        </Text>
+        <View
+          style={[
+            {
+              marginBottom: spacing.md,
+              padding: spacing.md,
+              borderRadius: radii.md,
+              borderWidth: 1,
+              borderColor: theme.border,
+              backgroundColor: theme.secondary,
+            },
+          ]}
+        >
+          <Text style={[ui.caption(theme), { fontWeight: '700', marginBottom: spacing.xs }]}>Availability</Text>
+          <Text style={[ui.caption(theme)]}>{provider.availabilityText}</Text>
+        </View>
       ) : null}
 
-      <View style={[ui.card(theme), { marginBottom: spacing.md }]}>
-        <Text style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.sm }]}>Services & products</Text>
+      {(provider.canBook || catalog.length > 0) && (
+        <View
+          style={[
+            {
+              marginBottom: spacing.lg,
+              padding: spacing.md,
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: theme.border,
+              backgroundColor: theme.card,
+            },
+            cardShadow,
+          ]}
+        >
+          <Text style={{ color: theme.text, fontWeight: '800', fontSize: 16, marginBottom: spacing.xs }}>
+            Book or shop
+          </Text>
+          <Text style={[ui.caption(theme), { color: theme.subtleText, marginBottom: spacing.md }]}>
+            Book a visit (wallet + Interswitch if the provider charges a fee). Browse the shop for products with photos
+            and checkout details.
+          </Text>
+          <View style={{ gap: spacing.sm }}>
+            {provider.canBook ? (
+              <TouchableOpacity
+                style={[ui.buttonPrimary(theme), { borderRadius: radii.lg, minHeight: 50, justifyContent: 'center' }]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/book-appointment',
+                    params: {
+                      providerId: provider._id,
+                      providerName: provider.name,
+                      ...(appointmentServiceNote ? { prefillNote: appointmentServiceNote } : {}),
+                    },
+                  })
+                }
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
+                  <Ionicons name="calendar" size={20} color={theme.primaryForeground} />
+                  <Text adjustsFontSizeToFit style={ui.buttonTextPrimary(theme)}>Book appointment</Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
+            {catalog.length > 0 ? (
+              <TouchableOpacity
+                style={[
+                  ui.buttonOutline(theme),
+                  { borderRadius: radii.lg, minHeight: 50, justifyContent: 'center', borderWidth: 2 },
+                ]}
+                onPress={goShop}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
+                  <Ionicons name="bag-handle-outline" size={22} color={theme.primary} />
+                  <Text style={[ui.buttonText(theme), { color: theme.primary, fontWeight: '800' }]}>Go to shop</Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      )}
 
-        <Text style={[ui.caption(theme), { marginBottom: spacing.xs, fontWeight: '700' }]}>Services</Text>
+      <View
+        style={[
+          {
+            marginBottom: spacing.md,
+            padding: spacing.md,
+            borderRadius: radii.lg,
+            borderWidth: 1,
+            borderColor: theme.border,
+            backgroundColor: theme.card,
+          },
+          cardShadow,
+        ]}
+      >
+        <Text style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.sm }]}>Location</Text>
+        {provider.address ? (
+          <Text style={[ui.caption(theme), { marginBottom: spacing.xs }]}>{provider.address}</Text>
+        ) : null}
+        <Text style={[ui.caption(theme), { marginBottom: spacing.sm }]}>
+          {[provider.city, provider.country].filter(Boolean).join(', ') || '—'}
+        </Text>
+        {coords ? (
+          <>
+            <Text style={[ui.caption(theme), { color: theme.subtleText, marginBottom: spacing.sm }]}>
+              GPS: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+            </Text>
+            <TouchableOpacity
+              style={[ui.buttonOutline(theme), { alignSelf: 'flex-start' }]}
+              onPress={() =>
+                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`).catch(
+                  () => {}
+                )
+              }
+            >
+              <Text style={ui.buttonText(theme)}>Open in Maps</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={ui.caption(theme)}>Coordinates not available</Text>
+        )}
+      </View>
+
+      <View
+        style={[
+          {
+            marginBottom: spacing.md,
+            padding: spacing.md,
+            borderRadius: radii.lg,
+            borderWidth: 1,
+            borderColor: theme.border,
+            backgroundColor: theme.card,
+          },
+          cardShadow,
+        ]}
+      >
+        <Text style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.sm }]}>Services</Text>
+        <Text style={[ui.caption(theme), { color: theme.subtleText, marginBottom: spacing.sm }]}>
+          {canRequestItems ? 'Tap services you want mentioned when you book.' : 'Offered services'}
+        </Text>
         {provider.services?.length ? (
           <View style={styles.pillsWrap}>
-            {provider.services.slice(0, 10).map((s) => {
+            {provider.services.slice(0, 16).map((s) => {
               const sk = serviceKey(s);
-              const selected = selectedSet.has(sk);
+              const selected = serviceSelectSet.has(sk);
               const pillStyle = {
                 borderColor: theme.border,
                 backgroundColor: selected ? theme.primary + '22' : theme.secondary,
@@ -385,7 +475,7 @@ export default function ProviderDetailsScreen() {
               );
 
               return canRequestItems ? (
-                <TouchableOpacity key={s} onPress={() => toggleSelectedItem(sk)} style={[styles.pill, pillStyle]}>
+                <TouchableOpacity key={s} onPress={() => toggleServiceKey(sk)} style={[styles.pill, pillStyle]}>
                   {inner}
                 </TouchableOpacity>
               ) : (
@@ -398,51 +488,23 @@ export default function ProviderDetailsScreen() {
         ) : (
           <Text style={ui.caption(theme)}>Not listed</Text>
         )}
-
-        <View style={{ height: spacing.md }} />
-
-        <Text style={[ui.caption(theme), { marginBottom: spacing.xs, fontWeight: '700' }]}>Products for sale</Text>
-        {catalog.length ? (
-          <View style={styles.pillsWrap}>
-            {catalog.slice(0, 20).map((p) => {
-              const pk = productKey(p);
-              const selected = selectedSet.has(pk);
-              const pillStyle = {
-                borderColor: theme.border,
-                backgroundColor: selected ? theme.primary + '22' : theme.secondary,
-              };
-              const label = p.price > 0 ? `${p.name} · ₦${p.price.toLocaleString()}` : `${p.name} · Free`;
-              const inner = (
-                <Text style={[styles.pillText, { color: theme.text }]} numberOfLines={2}>
-                  {label}
-                </Text>
-              );
-
-              return canRequestItems ? (
-                <TouchableOpacity key={pk} onPress={() => toggleSelectedItem(pk)} style={[styles.pill, pillStyle]}>
-                  {inner}
-                </TouchableOpacity>
-              ) : (
-                <View key={pk} style={[styles.pill, pillStyle]}>
-                  {inner}
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          <Text style={ui.caption(theme)}>Not listed</Text>
-        )}
       </View>
 
-      {canRequestItems ? (
-        <Text style={[ui.caption(theme), { marginBottom: spacing.md, fontWeight: '700' }]}>
-          Selected: {selectedPreview}
-        </Text>
-      ) : null}
-
       {canManage && edit ? (
-        <View style={[ui.card(theme), { marginBottom: spacing.md }]}>
-          <Text style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.sm }]}>Manage listing</Text>
+        <View
+          style={[
+            {
+              marginBottom: spacing.md,
+              padding: spacing.md,
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: theme.border,
+              backgroundColor: theme.card,
+            },
+            cardShadow,
+          ]}
+        >
+          <Text style={[ui.h2(theme), { fontSize: 16, marginBottom: spacing.sm }]}>Manage listing & catalog</Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }}>
             <Text style={ui.caption(theme)}>Open now</Text>
@@ -482,41 +544,75 @@ export default function ProviderDetailsScreen() {
             style={[ui.input(theme), { marginBottom: spacing.sm }]}
           />
 
-          <Text style={[ui.caption(theme), { fontWeight: '700', marginBottom: spacing.xs }]}>Products (name & price)</Text>
-          <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', marginBottom: spacing.sm }}>
-            <TextInput
-              value={editProductName}
-              onChangeText={setEditProductName}
-              placeholder="Product name"
-              placeholderTextColor={theme.subtleText}
-              style={[ui.input(theme), { flex: 1, minWidth: 120, marginBottom: 0 }]}
-            />
-            <TextInput
-              value={editProductPrice}
-              onChangeText={setEditProductPrice}
-              placeholder="₦ (0 free)"
-              placeholderTextColor={theme.subtleText}
-              keyboardType="numeric"
-              style={[ui.input(theme), { width: 96, marginBottom: 0 }]}
-            />
-            <TouchableOpacity
-              style={[ui.buttonPrimary(theme)]}
-              onPress={() => {
-                const name = String(editProductName || '').trim();
-                if (!name) return;
-                const price = Math.max(0, Number(editProductPrice) || 0);
-                setEdit((p) => ({
-                  ...p,
-                  productRows: [...(p.productRows || []), { name, price }],
-                }));
-                setEditProductName('');
-                setEditProductPrice('');
-              }}
-            >
-              <Text style={ui.buttonTextPrimary(theme)}>Add</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm }}>
+          <Text style={[ui.caption(theme), { fontWeight: '800', marginBottom: spacing.xs }]}>Products (shop)</Text>
+          <Text style={[ui.caption(theme), { color: theme.subtleText, marginBottom: spacing.sm }]}>
+            Optional image URL and description show on the storefront.
+          </Text>
+          <TextInput
+            value={editProductName}
+            onChangeText={setEditProductName}
+            placeholder="Product name *"
+            placeholderTextColor={theme.subtleText}
+            style={[ui.input(theme), { marginBottom: spacing.sm }]}
+          />
+          <TextInput
+            value={editProductPrice}
+            onChangeText={setEditProductPrice}
+            placeholder="Price ₦ (0 = free)"
+            placeholderTextColor={theme.subtleText}
+            keyboardType="numeric"
+            style={[ui.input(theme), { marginBottom: spacing.sm }]}
+          />
+          <TextInput
+            value={editProductDescription}
+            onChangeText={setEditProductDescription}
+            placeholder="Description (optional)"
+            placeholderTextColor={theme.subtleText}
+            multiline
+            style={[ui.input(theme), { marginBottom: spacing.sm, minHeight: 72, textAlignVertical: 'top' }]}
+          />
+          <TextInput
+            value={editProductImageUrl}
+            onChangeText={setEditProductImageUrl}
+            placeholder="Image URL (optional)"
+            placeholderTextColor={theme.subtleText}
+            autoCapitalize="none"
+            style={[ui.input(theme), { marginBottom: spacing.md }]}
+          />
+          <TouchableOpacity
+            onPress={() => {
+              const name = String(editProductName || '').trim();
+              if (!name) return;
+              const price = Math.max(0, Number(editProductPrice) || 0);
+              const row = { name, price };
+              const d = String(editProductDescription || '').trim();
+              const img = String(editProductImageUrl || '').trim();
+              if (d) row.description = d;
+              if (img) row.imageUrl = img;
+              setEdit((p) => ({
+                ...p,
+                productRows: [...(p.productRows || []), row],
+              }));
+              setEditProductName('');
+              setEditProductPrice('');
+              setEditProductDescription('');
+              setEditProductImageUrl('');
+            }}
+            activeOpacity={0.88}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              backgroundColor: theme.primary,
+              borderRadius: radii.lg,
+              paddingVertical: spacing.md,
+            }}
+          >
+            <Ionicons name="add-circle" size={22} color={theme.primaryForeground} />
+            <Text style={{ color: theme.primaryForeground, fontWeight: '800', fontSize: 16 }}>Add to catalog</Text>
+          </TouchableOpacity>
+          <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
             {(edit.productRows || []).map((p, i) => (
               <TouchableOpacity
                 key={`${p.name}-${p.price}-${i}`}
@@ -526,12 +622,45 @@ export default function ProviderDetailsScreen() {
                     productRows: (prev.productRows || []).filter((_, idx) => idx !== i),
                   }))
                 }
-                style={[styles.pill, { borderColor: theme.border, backgroundColor: theme.secondary }]}
+                activeOpacity={0.85}
+                style={{
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  borderRadius: radii.md,
+                  padding: spacing.sm,
+                  backgroundColor: theme.secondary,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.sm,
+                }}
               >
-                <Text style={[styles.pillText, { color: theme.text }]} numberOfLines={1}>
-                  {p.name}
-                  {p.price > 0 ? ` · ₦${p.price.toLocaleString()}` : ' · Free'} ×
-                </Text>
+                {p.imageUrl ? (
+                  <Image source={{ uri: p.imageUrl }} style={{ width: 44, height: 44, borderRadius: radii.sm }} />
+                ) : (
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: radii.sm,
+                      backgroundColor: theme.card,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                    }}
+                  >
+                    <Ionicons name="cube-outline" size={20} color={theme.subtleText} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '800' }} numberOfLines={2}>
+                    {p.name}
+                  </Text>
+                  <Text style={{ color: theme.primary, fontWeight: '700', marginTop: 2 }}>
+                    {p.price > 0 ? `₦${p.price.toLocaleString()}` : 'Free'}
+                  </Text>
+                </View>
+                <Ionicons name="close-circle" size={24} color={theme.subtleText} />
               </TouchableOpacity>
             ))}
           </View>
@@ -547,7 +676,17 @@ export default function ProviderDetailsScreen() {
           <TouchableOpacity style={[ui.buttonPrimary(theme), { marginTop: spacing.sm }]} onPress={saveMine} disabled={saving}>
             <Text style={ui.buttonTextPrimary(theme)}>{saving ? 'Saving...' : 'Save changes'}</Text>
           </TouchableOpacity>
-          <Text style={[ui.caption(theme), { marginTop: spacing.xs }]}>Updates will be submitted for moderation.</Text>
+          {(edit.productRows || []).length > 0 ? (
+            <TouchableOpacity
+              style={[ui.buttonOutline(theme), { marginTop: spacing.sm, borderRadius: radii.lg }]}
+              onPress={goShop}
+            >
+              <Text style={ui.buttonText(theme)}>Preview storefront</Text>
+            </TouchableOpacity>
+          ) : null}
+          <Text style={[ui.caption(theme), { marginTop: spacing.xs }]}>
+            Clinician listings usually go live immediately; admins can still review if needed.
+          </Text>
         </View>
       ) : null}
 
@@ -587,37 +726,8 @@ export default function ProviderDetailsScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
-      {user?.accountType === 'patient' && selectedOrderLines.length > 0 ? (
-        <TouchableOpacity
-          style={[ui.buttonOutline(theme), { marginTop: spacing.md }]}
-          onPress={checkoutSelectedProducts}
-          disabled={ordering}
-        >
-          <Text style={ui.buttonText(theme)}>{ordering ? 'Checking out…' : 'Buy selected products'}</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {user?.accountType === 'patient' && provider.canBook ? (
-        <TouchableOpacity
-          style={[ui.buttonPrimary(theme), { marginTop: spacing.md }]}
-          onPress={() =>
-            router.push({
-              pathname: '/(app)/book-appointment',
-              params: {
-                providerId: provider._id,
-                providerName: provider.name,
-                ...(selectedItems.length ? { prefillNote: requestNote } : {}),
-              },
-            })
-          }
-        >
-          <Text style={ui.buttonTextPrimary(theme)}>
-            {selectedItems.length ? 'Book & request items' : 'Book appointment'}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

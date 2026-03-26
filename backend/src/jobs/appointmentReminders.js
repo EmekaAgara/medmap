@@ -2,12 +2,24 @@ const cron = require('node-cron');
 const Appointment = require('../models/Appointment');
 const { notifyUserPush } = require('../utils/push');
 const logger = require('../config/logger');
+const env = require('../config/env');
 
 /**
  * ~24h before confirmed start, send one reminder push (patient + provider).
  */
 function scheduleAppointmentReminders() {
-  cron.schedule('*/15 * * * *', async () => {
+  if (!env.appointmentRemindersEnabled) {
+    logger.info('Appointment reminder cron disabled (APPOINTMENT_REMINDERS_ENABLED=false)');
+    return;
+  }
+
+  const expression = env.appointmentReminderCron;
+  if (!cron.validate(expression)) {
+    logger.error('Invalid APPOINTMENT_REMINDER_CRON; reminders not scheduled', { expression });
+    return;
+  }
+
+  cron.schedule(expression, async () => {
     try {
       const now = Date.now();
       const from = new Date(now + 23 * 60 * 60 * 1000);
@@ -41,7 +53,7 @@ function scheduleAppointmentReminders() {
       logger.error('Appointment reminder job failed', { error: e.message });
     }
   });
-  logger.info('Appointment reminder cron scheduled (every 15 min)');
+  logger.info('Appointment reminder cron scheduled', { expression });
 }
 
 module.exports = { scheduleAppointmentReminders };

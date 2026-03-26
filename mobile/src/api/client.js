@@ -1,14 +1,20 @@
-import * as SecureStore from 'expo-secure-store';
-import API_BASE_URL from './baseUrl';
+import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DeviceEventEmitter } from "react-native";
+import API_BASE_URL from "./baseUrl";
 
-const ACCESS_TOKEN_KEY = 'medmap_access_token';
-const REFRESH_TOKEN_KEY = 'medmap_refresh_token';
-const DEVICE_ID_KEY = 'medmap_device_id';
+export const MEDMAP_AUTH_REFRESH_EVENT = "medmap:auth-refreshed";
+
+const ACCESS_TOKEN_KEY = "medmap_access_token";
+const REFRESH_TOKEN_KEY = "medmap_refresh_token";
+const DEVICE_ID_KEY = "medmap_device_id";
 
 export async function saveAuthSession({ accessToken, refreshToken, deviceId }) {
   try {
-    if (accessToken) await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
-    if (refreshToken) await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+    if (accessToken)
+      await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+    if (refreshToken)
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
     if (deviceId) await SecureStore.setItemAsync(DEVICE_ID_KEY, deviceId);
   } catch {
     // ignore secure store failures
@@ -40,45 +46,81 @@ export async function clearAuthSession() {
   }
 }
 
-// Shared helper: attempt token refresh and return new tokens
+/** Single in-flight refresh so parallel requests (e.g. verify poll + nav) don’t stampede /auth/refresh. */
+let refreshPromise = null;
+
+// Shared helper: attempt token refresh and return new access token (updates SecureStore)
 async function attemptRefresh() {
-  const { refreshToken, deviceId } = await loadAuthSession();
-  if (!refreshToken) return null;
+  if (refreshPromise) return refreshPromise;
 
-  const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // Send as header so deviceFingerprint middleware picks it up
-      ...(deviceId ? { 'X-Device-Id': deviceId } : {}),
-    },
-    // Also send in body for redundancy
-    body: JSON.stringify({ refreshToken, deviceId }),
-  });
+  refreshPromise = (async () => {
+    const { refreshToken, deviceId } = await loadAuthSession();
+    if (!refreshToken) return null;
 
-  const data = await res.json().catch(() => ({}));
-
-  if (res.ok && data?.data?.accessToken) {
-    const refreshed = data.data;
-    await saveAuthSession({
-      accessToken: refreshed.accessToken,
-      refreshToken: refreshed.refreshToken,
-      // preserve existing deviceId if the server doesn't return a new one
-      deviceId: refreshed.deviceId || deviceId,
+    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(deviceId ? { "X-Device-Id": deviceId } : {}),
+      },
+      body: JSON.stringify({ refreshToken, deviceId }),
     });
-    return refreshed.accessToken;
-  }
 
-  throw new Error(data.message || 'Session expired. Please log in again.');
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data?.data?.accessToken) {
+      const refreshed = data.data;
+      const nextDeviceId = refreshed.deviceId || deviceId;
+      await saveAuthSession({
+        accessToken: refreshed.accessToken,
+        refreshToken: refreshed.refreshToken,
+        deviceId: nextDeviceId,
+      });
+      try {
+        const raw = await AsyncStorage.getItem("medmap_auth");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          await AsyncStorage.setItem(
+            "medmap_auth",
+            JSON.stringify({
+              ...parsed,
+              token: refreshed.accessToken,
+              refreshToken: refreshed.refreshToken ?? parsed.refreshToken,
+              deviceId: nextDeviceId ?? parsed.deviceId,
+            }),
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+      DeviceEventEmitter.emit(MEDMAP_AUTH_REFRESH_EVENT, {
+        accessToken: refreshed.accessToken,
+        refreshToken: refreshed.refreshToken,
+        deviceId: nextDeviceId,
+      });
+      return refreshed.accessToken;
+    }
+
+    throw new Error(data.message || "Session expired. Please log in again.");
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
 }
 
-// Build request headers, always attaching deviceId as X-Device-Id
-async function buildHeaders(accessToken, contentType = 'application/json') {
-  const { deviceId } = await loadAuthSession();
+/**
+ * Prefer SecureStore access token over the caller’s `token` (React context lags behind refresh).
+ */
+async function buildHeaders(fallbackAccessToken, contentType = "application/json") {
+  const { accessToken: stored, deviceId } = await loadAuthSession();
+  const accessToken = stored || fallbackAccessToken;
   const headers = {};
-  if (contentType) headers['Content-Type'] = contentType;
+  if (contentType) headers["Content-Type"] = contentType;
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  if (deviceId) headers['X-Device-Id'] = deviceId;
+  if (deviceId) headers["X-Device-Id"] = deviceId;
   return headers;
 }
 
@@ -86,23 +128,30 @@ export async function apiUpload(path, { formData, token } = {}) {
   const makeRequest = async (accessToken) => {
     // No Content-Type — fetch sets multipart/form-data with boundary automatically
     const headers = await buildHeaders(accessToken, null);
-    const res = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', headers, body: formData });
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
     const data = await res.json().catch(() => ({}));
     return { res, data };
   };
 
   let { res, data } = await makeRequest(token);
 
-  if (res.status === 401 && token) {
-    const newToken = await attemptRefresh();
-    ({ res, data } = await makeRequest(newToken));
+  if (res.status === 401) {
+    const { refreshToken } = await loadAuthSession();
+    if (refreshToken) {
+      await attemptRefresh();
+      ({ res, data } = await makeRequest(null));
+    }
   }
 
-  if (!res.ok) throw new Error(data.message || 'Upload failed');
+  if (!res.ok) throw new Error(data.message || "Upload failed");
   return data;
 }
 
-export async function apiRequest(path, { method = 'GET', body, token } = {}) {
+export async function apiRequest(path, { method = "GET", body, token } = {}) {
   const makeRequest = async (accessToken) => {
     const headers = await buildHeaders(accessToken);
     const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -116,14 +165,16 @@ export async function apiRequest(path, { method = 'GET', body, token } = {}) {
 
   let { res, data } = await makeRequest(token);
 
-  // If 401 and we had a token, silently refresh and retry once
-  if (res.status === 401 && token) {
-    const newToken = await attemptRefresh();
-    ({ res, data } = await makeRequest(newToken));
+  if (res.status === 401) {
+    const { refreshToken } = await loadAuthSession();
+    if (refreshToken) {
+      await attemptRefresh();
+      ({ res, data } = await makeRequest(null));
+    }
   }
 
   if (!res.ok) {
-    const err = new Error(data.message || 'Request failed');
+    const err = new Error(data.message || "Request failed");
     err.status = res.status;
     err.details = data.details;
     throw err;

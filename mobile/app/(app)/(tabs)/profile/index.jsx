@@ -390,6 +390,19 @@ export default function ProfileScreen() {
                   Edit profile
                 </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.editBtn,
+                  { borderColor: theme.border, marginTop: spacing.sm },
+                ]}
+                onPress={() => router.push("/(app)/wallet")}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="wallet-outline" size={14} color={theme.text} />
+                <Text style={[styles.editBtnText, { color: theme.text }]}>
+                  MedMap wallet
+                </Text>
+              </TouchableOpacity>
               {profile?.accountType && profile.accountType !== "patient" ? (
                 <TouchableOpacity
                   style={[
@@ -418,7 +431,11 @@ export default function ProfileScreen() {
                   onPress={() => router.push("/(app)/appointments")}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="calendar-outline" size={14} color={theme.text} />
+                  <Ionicons
+                    name="calendar-outline"
+                    size={14}
+                    color={theme.text}
+                  />
                   <Text style={[styles.editBtnText, { color: theme.text }]}>
                     My appointments
                   </Text>
@@ -439,6 +456,36 @@ export default function ProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               ) : null}
+              {profile?.accountType === "patient" ? (
+                <TouchableOpacity
+                  style={[
+                    styles.editBtn,
+                    { borderColor: theme.border, marginTop: spacing.sm },
+                  ]}
+                  onPress={() => router.push("/(app)/medical-timeline")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="pulse-outline" size={14} color={theme.text} />
+                  <Text style={[styles.editBtnText, { color: theme.text }]}>
+                    Medical timeline
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {profile?.accountType === "patient" ? (
+                <TouchableOpacity
+                  style={[
+                    styles.editBtn,
+                    { borderColor: theme.border, marginTop: spacing.sm },
+                  ]}
+                  onPress={() => router.push("/(app)/medical-profile")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="clipboard-outline" size={14} color={theme.text} />
+                  <Text style={[styles.editBtnText, { color: theme.text }]}>
+                    Medical profile
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               {profile?.accountType && profile.accountType !== "patient" ? (
                 <TouchableOpacity
                   style={[
@@ -448,7 +495,11 @@ export default function ProfileScreen() {
                   onPress={() => router.push("/(app)/provider-appointments")}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="calendar-outline" size={14} color={theme.text} />
+                  <Ionicons
+                    name="calendar-outline"
+                    size={14}
+                    color={theme.text}
+                  />
                   <Text style={[styles.editBtnText, { color: theme.text }]}>
                     Appointment requests
                   </Text>

@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useThemeMode } from '../_layout';
 import ScreenHeader from '../components/ScreenHeader';
 import { apiRequest } from '../../src/api/client';
+import { beginInAppCheckout } from '../../src/wallet/checkoutSession';
 import { ui, spacing, typography } from '../../theme/tokens';
 
 function defaultStart() {
@@ -104,7 +105,20 @@ export default function BookAppointmentScreen() {
       }
     } catch (e) {
       const pay = e.details?.payment;
-      if (pay?.paymentLink) {
+      if ((pay?.paymentLink || pay?.paymentHtml) && pay?.reference && token) {
+        await beginInAppCheckout(router, {
+          paymentLink: pay.paymentLink,
+          paymentHtml: pay.paymentHtml,
+          reference: pay.reference,
+          returnUrlPrefixes: pay.returnUrlPrefixes,
+          intent: 'appointment',
+          appointmentPayload: {
+            providerId,
+            requestedStart: when.toISOString(),
+            patientNote: note.trim() || undefined,
+          },
+        });
+      } else if (pay?.paymentLink) {
         Alert.alert(
           'Wallet balance too low',
           `Add at least ₦${Number(pay.shortfall || 0).toLocaleString()} to book this visit.`,
@@ -145,6 +159,12 @@ export default function BookAppointmentScreen() {
               ? 'Free booking'
               : `You’ll pay ₦${provider?.hourlyRate ? Number(provider.hourlyRate).toLocaleString() : '—'} from your wallet when you send this request.`}
           </Text>
+          {Number(provider?.hourlyRate) > 0 ? (
+            <Text style={[ui.caption(theme), { marginTop: spacing.sm, color: theme.subtleText }]}>
+              If your wallet balance is low, you’ll get a secure Interswitch link to add funds, then send the request
+              again.
+            </Text>
+          ) : null}
         </View>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md }}>

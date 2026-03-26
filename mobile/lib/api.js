@@ -1,8 +1,8 @@
-import API_BASE_URL from '../src/api/baseUrl';
+import API_BASE_URL from "../src/api/baseUrl";
 
-export async function apiRequest(path, { method = 'GET', body, token } = {}) {
+export async function apiRequest(path, { method = "GET", body, token } = {}) {
   const headers = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -16,7 +16,7 @@ export async function apiRequest(path, { method = 'GET', body, token } = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.message || 'Request failed');
+    const err = new Error(data.message || "Request failed");
     err.status = res.status;
     throw err;
   }

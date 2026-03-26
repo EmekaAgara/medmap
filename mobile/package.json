@@ -16,6 +16,7 @@
     "expo": "~55.0.5",
     "expo-constants": "~55.0.7",
     "expo-device": "~55.0.10",
+    "expo-document-picker": "~55.0.9",
     "expo-font": "^55.0.4",
     "expo-haptics": "~55.0.8",
     "expo-image-picker": "^55.0.11",
@@ -30,6 +31,7 @@
     "react-native-maps": "^1.27.2",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screens": "^4.24.0",
+    "react-native-webview": "13.16.0",
     "socket.io-client": "^4.8.3"
   },
   "private": true

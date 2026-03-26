@@ -1,6 +1,8 @@
 const Order = require('../../models/Order');
 const Provider = require('../../models/Provider');
 const walletService = require('../wallet/wallet.service');
+const cloudinary = require('../../config/cloudinary');
+const PrescriptionUpload = require('../../models/PrescriptionUpload');
 
 // Catalog normalization (keep in sync with provider.service normalizeProducts)
 function normalizeCatalog(raw) {
@@ -15,13 +17,119 @@ function normalizeCatalog(raw) {
       const name = String(item.name).trim();
       if (!name) continue;
       const price = Math.max(0, Number(item.price) || 0);
-      out.push({ name, price });
+      const stockQtyRaw = item.stockQty ?? item.stock ?? item.quantity;
+      const stockQtyParsed = stockQtyRaw == null ? null : Math.floor(Number(stockQtyRaw));
+      const stockQty =
+        Number.isFinite(stockQtyParsed) && stockQtyParsed >= 0 ? stockQtyParsed : undefined;
+      const row = {
+        name,
+        price,
+        stockQty,
+        requiresPrescription: item.requiresPrescription != null ? !!item.requiresPrescription : false,
+        isRestricted: item.isRestricted != null ? !!item.isRestricted : false,
+      };
+      if (item.description) row.description = String(item.description).slice(0, 2000);
+      if (item.imageUrl) row.imageUrl = String(item.imageUrl).slice(0, 2048);
+      out.push(row);
     }
   }
   return out;
 }
 
-async function createOrder(buyerUserId, { providerId, lines }) {
+async function uploadPrescription({ buyerUserId, providerId, file }) {
+  if (!file || !file.buffer) {
+    throw Object.assign(new Error('File is required'), { status: 400 });
+  }
+  const provider = await Provider.findOne({
+    _id: providerId,
+    isActive: true,
+    moderationStatus: 'approved',
+  }).lean();
+  if (!provider) throw Object.assign(new Error('Provider not found'), { status: 404 });
+
+  const mimeType = String(file.mimetype || '').toLowerCase();
+  const allowed = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/pdf',
+  ]);
+  if (mimeType && !allowed.has(mimeType)) {
+    throw Object.assign(new Error('Unsupported file type'), { status: 400 });
+  }
+
+  const uploadResult = await new Promise((resolve, reject) => {
+    const isPdf = mimeType === 'application/pdf';
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'medmap/prescriptions',
+        resource_type: isPdf ? 'raw' : 'image',
+        transformation: isPdf
+          ? undefined
+          : [{ quality: 'auto', fetch_format: 'auto' }],
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        return resolve(result);
+      },
+    );
+    stream.end(file.buffer);
+  });
+
+  const row = await PrescriptionUpload.create({
+    buyerUser: buyerUserId,
+    provider: provider._id,
+    url: uploadResult.secure_url,
+    mimeType: mimeType || undefined,
+    originalName: file.originalname ? String(file.originalname).slice(0, 255) : undefined,
+  });
+
+  return { prescriptionUploadId: row._id, url: row.url };
+}
+
+async function decrementProviderStock({ providerId, items }) {
+  const provider = await Provider.findById(providerId);
+  if (!provider) return;
+  if (!Array.isArray(provider.products)) return;
+
+  const map = new Map();
+  for (const it of items || []) {
+    const k = String(it.name || '').toLowerCase();
+    if (!k) continue;
+    map.set(k, (map.get(k) || 0) + (Number(it.quantity) || 0));
+  }
+  if (!map.size) return;
+
+  provider.products = provider.products.map((p) => {
+    if (!p || typeof p !== 'object' || p.name == null) return p;
+    const k = String(p.name).toLowerCase();
+    if (!map.has(k)) return p;
+    const qty = map.get(k);
+    const stockQtyParsed = p.stockQty == null ? null : Math.floor(Number(p.stockQty));
+    if (!Number.isFinite(stockQtyParsed) || stockQtyParsed < 0) return p;
+    return { ...p, stockQty: Math.max(0, stockQtyParsed - qty) };
+  });
+
+  await provider.save();
+}
+
+function buildFulfillment(payload) {
+  const method = payload?.fulfillment?.method || payload?.fulfillmentMethod || 'pickup';
+  const normalized = method === 'delivery' ? 'delivery' : 'pickup';
+  const address = payload?.fulfillment?.address ?? payload?.deliveryAddress;
+  const phone = payload?.fulfillment?.phone ?? payload?.deliveryPhone;
+  const notes = payload?.fulfillment?.notes ?? payload?.fulfillmentNotes;
+
+  return {
+    method: normalized,
+    address: address != null ? String(address).trim().slice(0, 500) : undefined,
+    phone: phone != null ? String(phone).trim().slice(0, 64) : undefined,
+    notes: notes != null ? String(notes).trim().slice(0, 500) : undefined,
+  };
+}
+
+async function createOrder(buyerUserId, payload) {
+  const { providerId, lines } = payload || {};
   if (!providerId) throw Object.assign(new Error('providerId is required'), { status: 400 });
   if (!Array.isArray(lines) || !lines.length) {
     throw Object.assign(new Error('lines array is required'), { status: 400 });
@@ -43,6 +151,7 @@ async function createOrder(buyerUserId, { providerId, lines }) {
 
   const validatedItems = [];
   let total = 0;
+  let prescriptionRequired = false;
 
   for (const line of lines) {
     const name = String(line.name || '').trim();
@@ -51,6 +160,14 @@ async function createOrder(buyerUserId, { providerId, lines }) {
     const found = catalogByName.get(name.toLowerCase());
     if (!found) {
       throw Object.assign(new Error(`Product not listed: ${name}`), { status: 400 });
+    }
+    if (found.stockQty != null && Number.isFinite(Number(found.stockQty))) {
+      if (Number(found.stockQty) < qty) {
+        throw Object.assign(new Error(`Out of stock: ${found.name}`), { status: 400 });
+      }
+    }
+    if (found.requiresPrescription || found.isRestricted) {
+      prescriptionRequired = true;
     }
     const unitPrice = found.price;
     total += unitPrice * qty;
@@ -61,6 +178,37 @@ async function createOrder(buyerUserId, { providerId, lines }) {
     throw Object.assign(new Error('No valid line items'), { status: 400 });
   }
 
+  const fulfillment = buildFulfillment(payload);
+
+  if (
+    prescriptionRequired &&
+    !(payload?.prescriptionUploadId || payload?.prescriptionId || payload?.prescriptionUrl)
+  ) {
+    throw Object.assign(new Error('Prescription is required for one or more items'), {
+      status: 400,
+      details: { requiresPrescription: true },
+    });
+  }
+
+  let prescriptionMeta = { required: prescriptionRequired };
+  const providedUploadId = payload?.prescriptionUploadId || payload?.prescriptionId;
+  const providedUrl = payload?.prescriptionUrl;
+  if (providedUploadId) {
+    const upload = await PrescriptionUpload.findById(providedUploadId).lean();
+    if (!upload) {
+      throw Object.assign(new Error('Prescription upload not found'), { status: 400 });
+    }
+    if (String(upload.buyerUser) !== String(buyerUserId)) {
+      throw Object.assign(new Error('Invalid prescription upload'), { status: 403 });
+    }
+    if (String(upload.provider) !== String(provider._id)) {
+      throw Object.assign(new Error('Prescription upload must match provider'), { status: 400 });
+    }
+    prescriptionMeta = { ...prescriptionMeta, uploadId: upload._id, url: upload.url };
+  } else if (providedUrl) {
+    prescriptionMeta = { ...prescriptionMeta, url: String(providedUrl).trim().slice(0, 2048) };
+  }
+
   const order = await Order.create({
     buyerUser: buyerUserId,
     provider: provider._id,
@@ -68,11 +216,18 @@ async function createOrder(buyerUserId, { providerId, lines }) {
     items: validatedItems,
     totalAmount: total,
     currency: 'NGN',
+    fulfillment,
+    prescription: prescriptionMeta,
     status: total === 0 ? 'paid' : 'pending_payment',
     paidAt: total === 0 ? new Date() : undefined,
+    trackingEvents: [
+      { status: 'created', note: 'Order created' },
+      ...(total === 0 ? [{ status: 'paid', note: 'Free order' }] : []),
+    ],
   });
 
   if (total === 0) {
+    await decrementProviderStock({ providerId: provider._id, items: validatedItems });
     return { order: order.toObject(), payment: null };
   }
 
@@ -86,12 +241,20 @@ async function createOrder(buyerUserId, { providerId, lines }) {
     order.status = 'paid';
     order.paymentReference = reference;
     order.paidAt = new Date();
+    order.trackingEvents = [
+      ...(order.trackingEvents || []),
+      { status: 'paid', note: 'Paid from wallet' },
+    ];
     await order.save();
+    await decrementProviderStock({ providerId: provider._id, items: validatedItems });
     return { order: order.toObject(), payment: { method: 'wallet', reference } };
   }
 
   const shortfall = total - balance;
-  const fund = await walletService.initFundWallet(buyerUserId, shortfall);
+  const fund = await walletService.initFundWallet(buyerUserId, shortfall, {
+    intent: 'order_topup',
+    orderId: String(order._id),
+  });
 
   return {
     order: order.toObject(),
@@ -121,7 +284,10 @@ async function completeOrderPayment(buyerUserId, orderId) {
 
   if (balance < total) {
     const shortfall = total - balance;
-    const fund = await walletService.initFundWallet(buyerUserId, shortfall);
+    const fund = await walletService.initFundWallet(buyerUserId, shortfall, {
+      intent: 'order_topup',
+      orderId: String(order._id),
+    });
     return {
       order: order.toObject(),
       payment: {
@@ -140,7 +306,12 @@ async function completeOrderPayment(buyerUserId, orderId) {
   order.status = 'paid';
   order.paymentReference = reference;
   order.paidAt = new Date();
+  order.trackingEvents = [
+    ...(order.trackingEvents || []),
+    { status: 'paid', note: 'Paid from wallet' },
+  ];
   await order.save();
+  await decrementProviderStock({ providerId: order.provider, items: order.items });
 
   return { order: order.toObject(), payment: { method: 'wallet', reference } };
 }
@@ -186,6 +357,10 @@ async function cancelByBuyer(userId, orderId) {
     throw Object.assign(new Error('Only unpaid orders can be cancelled'), { status: 400 });
   }
   order.status = 'cancelled';
+  order.trackingEvents = [
+    ...(order.trackingEvents || []),
+    { status: 'cancelled', note: 'Cancelled by buyer' },
+  ];
   await order.save();
   return order.toObject();
 }
@@ -200,11 +375,74 @@ async function markFulfilled(ownerUserId, orderId) {
     throw Object.assign(new Error('Only paid orders can be marked fulfilled'), { status: 400 });
   }
   order.status = 'fulfilled';
+  order.trackingEvents = [
+    ...(order.trackingEvents || []),
+    { status: 'fulfilled', note: 'Marked fulfilled by seller' },
+  ];
+  await order.save();
+
+  const total = Number(order.totalAmount) || 0;
+  if (order.paymentReference && total > 0) {
+    await walletService.settleProviderEarnings({
+      providerUserId: order.providerOwnerUser,
+      grossAmount: total,
+      patientPaymentReference: order.paymentReference,
+      meta: { kind: 'order', orderId: String(order._id) },
+    });
+  }
+
+  return order.toObject();
+}
+
+async function updateStatusBySeller(ownerUserId, orderId, { status, note } = {}) {
+  const order = await Order.findById(orderId);
+  if (!order) throw Object.assign(new Error('Order not found'), { status: 404 });
+  if (String(order.providerOwnerUser) !== String(ownerUserId)) {
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
+  }
+  const next = String(status || '').trim();
+  const allowed = new Set(['processing', 'ready_for_pickup', 'out_for_delivery', 'fulfilled']);
+  if (!allowed.has(next)) {
+    throw Object.assign(new Error('Invalid status'), {
+      status: 400,
+      details: { allowed: Array.from(allowed) },
+    });
+  }
+  if (order.status === 'cancelled') {
+    throw Object.assign(new Error('Cancelled orders cannot be updated'), { status: 400 });
+  }
+  if (order.status === 'pending_payment') {
+    throw Object.assign(new Error('Unpaid orders cannot be updated'), { status: 400 });
+  }
+  // Basic forward-only progression.
+  const rank = {
+    paid: 1,
+    processing: 2,
+    ready_for_pickup: 3,
+    out_for_delivery: 3,
+    fulfilled: 4,
+  };
+  const cur = rank[order.status] || 0;
+  const nxt = rank[next] || 0;
+  if (nxt < cur) {
+    throw Object.assign(new Error('Status cannot move backwards'), { status: 400 });
+  }
+
+  if (next === 'fulfilled') {
+    return markFulfilled(ownerUserId, orderId);
+  }
+
+  order.status = next;
+  order.trackingEvents = [
+    ...(order.trackingEvents || []),
+    { status: next, note: note ? String(note).slice(0, 500) : undefined },
+  ];
   await order.save();
   return order.toObject();
 }
 
 module.exports = {
+  uploadPrescription,
   createOrder,
   completeOrderPayment,
   listAsBuyer,
@@ -212,4 +450,5 @@ module.exports = {
   getOneForUser,
   cancelByBuyer,
   markFulfilled,
+  updateStatusBySeller,
 };

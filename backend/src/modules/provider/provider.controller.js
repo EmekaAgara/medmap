@@ -30,6 +30,29 @@ async function getMyProvider(req, res) {
   }
 }
 
+async function getMyProducts(req, res) {
+  try {
+    const provider = await providerService.getMine(req.user.id);
+    if (!provider) return fail(res, 'Provider listing not found', 404);
+    return success(res, { providerId: provider._id, products: provider.products || [] });
+  } catch (err) {
+    return fail(res, err.message, err.status || 500);
+  }
+}
+
+async function updateMyProducts(req, res) {
+  try {
+    const { products } = req.body || {};
+    if (!Array.isArray(products)) {
+      return fail(res, 'products array is required', 400);
+    }
+    const provider = await providerService.updateMineProducts(req.user.id, products);
+    return success(res, { providerId: provider._id, products: provider.products || [] }, 'Catalog updated');
+  } catch (err) {
+    return fail(res, err.message, err.status || 500);
+  }
+}
+
 async function upsertMyProvider(req, res) {
   try {
     const provider = await providerService.upsertMine(req.user.id, req.body);
@@ -110,6 +133,8 @@ module.exports = {
   list,
   getOne,
   getMyProvider,
+  getMyProducts,
+  updateMyProducts,
   upsertMyProvider,
   uploadMyProviderAvatar,
   claim,

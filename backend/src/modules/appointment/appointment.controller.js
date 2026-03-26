@@ -73,6 +73,16 @@ async function reschedule(req, res) {
   }
 }
 
+async function addVisitSummary(req, res) {
+  try {
+    const { providerNote } = req.body || {};
+    const data = await appointmentService.addVisitSummary(req.user.id, req.params.id, { providerNote });
+    return success(res, data, 'Visit summary saved');
+  } catch (err) {
+    return fail(res, err.message, err.status || 500, err.details ?? null);
+  }
+}
+
 module.exports = {
   create,
   listPatient,
@@ -82,4 +92,5 @@ module.exports = {
   reject,
   cancel,
   reschedule,
+  addVisitSummary,
 };

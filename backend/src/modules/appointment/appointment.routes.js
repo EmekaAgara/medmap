@@ -15,5 +15,6 @@ router.post('/:id/confirm', writeLimiter, appointmentController.confirm);
 router.post('/:id/reject', writeLimiter, appointmentController.reject);
 router.post('/:id/cancel', writeLimiter, appointmentController.cancel);
 router.post('/:id/reschedule', writeLimiter, appointmentController.reschedule);
+router.post('/:id/summary', writeLimiter, appointmentController.addVisitSummary);
 
 module.exports = router;

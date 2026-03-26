@@ -16,5 +16,6 @@ router.post('/users/:id/ban',         adminController.banUser);
 router.post('/users/:id/unban',       adminController.unbanUser);
 router.get('/kyc/pending',            adminController.listPendingKyc);
 router.get('/activity',               adminController.getActivity);
+router.get('/payments/reconciliation', adminController.getPaymentsReconciliation);
 
 module.exports = router;

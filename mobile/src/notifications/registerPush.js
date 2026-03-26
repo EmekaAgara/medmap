@@ -19,7 +19,15 @@ Notifications.setNotificationHandler({
  */
 export async function registerPushAndSync(accessToken) {
   if (!accessToken) return;
-  if (!Device.isDevice) return;
+  if (!Device.isDevice) {
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[MedMap] Push: physical device required. Simulator/emulator will not receive appointment or message pushes.'
+      );
+    }
+    return;
+  }
 
   const { status: existing } = await Notifications.getPermissionsAsync();
   let finalStatus = existing;
@@ -38,6 +46,12 @@ export async function registerPushAndSync(accessToken) {
 
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  if (!projectId && __DEV__) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[MedMap] Push: add "extra.eas.projectId" in app.json after `eas init` so release builds get reliable Expo push tokens.'
+    );
+  }
   const tokenRes = await Notifications.getExpoPushTokenAsync(
     projectId ? { projectId } : undefined
   );

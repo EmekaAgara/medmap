@@ -1,5 +1,6 @@
 const { success, fail } = require('../../utils/responses');
 const adminService = require('./admin.service');
+const walletService = require('../wallet/wallet.service');
 
 async function getDashboard(req, res) {
   try {
@@ -102,6 +103,16 @@ async function reviewAccountTypeChange(req, res) {
   }
 }
 
+async function getPaymentsReconciliation(req, res) {
+  try {
+    const limit = Math.min(500, parseInt(req.query.limit || '100', 10) || 100);
+    const data = await walletService.getPlatformReconciliation({ limit });
+    return success(res, data);
+  } catch (err) {
+    return fail(res, err.message, err.status || 500);
+  }
+}
+
 module.exports = {
   getDashboard,
   listUsers,
@@ -113,4 +124,5 @@ module.exports = {
   banUser,
   unbanUser,
   getActivity,
+  getPaymentsReconciliation,
 };

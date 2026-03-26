@@ -1,4 +1,6 @@
 const Provider = require('../../models/Provider');
+const User = require('../../models/User');
+const env = require('../../config/env');
 
 function toNumber(value) {
   const n = Number(value);
@@ -27,7 +29,39 @@ function normalizeProducts(value) {
       const name = String(item.name).trim();
       if (!name) continue;
       const price = Math.max(0, Number(item.price) || 0);
-      out.push({ name, price });
+      const stockQtyRaw = item.stockQty ?? item.stock ?? item.quantity;
+      const stockQtyParsed = stockQtyRaw == null ? null : Math.floor(Number(stockQtyRaw));
+      const stockQty =
+        Number.isFinite(stockQtyParsed) && stockQtyParsed >= 0 ? stockQtyParsed : undefined;
+      const requiresPrescription =
+        item.requiresPrescription !== undefined ? !!item.requiresPrescription : undefined;
+      const isRestricted =
+        item.isRestricted !== undefined ? !!item.isRestricted : undefined;
+      const sku =
+        item.sku != null && String(item.sku).trim()
+          ? String(item.sku).trim().slice(0, 64)
+          : undefined;
+      const category =
+        item.category != null && String(item.category).trim()
+          ? String(item.category).trim().slice(0, 64)
+          : undefined;
+      const description =
+        item.description != null && String(item.description).trim()
+          ? String(item.description).trim().slice(0, 2000)
+          : undefined;
+      const imageUrl =
+        item.imageUrl != null && String(item.imageUrl).trim()
+          ? String(item.imageUrl).trim().slice(0, 2048)
+          : undefined;
+      const row = { name, price };
+      if (sku) row.sku = sku;
+      if (category) row.category = category;
+      if (stockQty !== undefined) row.stockQty = stockQty;
+      if (requiresPrescription !== undefined) row.requiresPrescription = requiresPrescription;
+      if (isRestricted !== undefined) row.isRestricted = isRestricted;
+      if (description) row.description = description;
+      if (imageUrl) row.imageUrl = imageUrl;
+      out.push(row);
     }
   }
   return out;
@@ -176,6 +210,14 @@ async function upsertMine(userId, payload) {
     throw Object.assign(new Error('providerType, name, and phone are required'), { status: 400 });
   }
 
+  const owner = await User.findById(userId).select('accountType').lean();
+  const selfServeTypes = new Set(['doctor', 'hospital_admin', 'pharmacy_admin']);
+  if (env.autoApproveProviderListings && owner && selfServeTypes.has(owner.accountType)) {
+    update.moderationStatus = 'approved';
+    update.moderationReason = undefined;
+    update.isVerified = true;
+  }
+
   return Provider.findOneAndUpdate(
     { ownerUser: userId },
     update,
@@ -190,13 +232,44 @@ async function updateMineAvatar(userId, imageUrl) {
   }
 
   provider.imageUrl = imageUrl;
-  // If a provider updates their image, re-send for moderation.
-  provider.moderationStatus = 'pending';
-  provider.moderationReason = undefined;
-  provider.isVerified = false;
+  const owner = await User.findById(userId).select('accountType').lean();
+  const selfServeTypes = new Set(['doctor', 'hospital_admin', 'pharmacy_admin']);
+  if (env.autoApproveProviderListings && owner && selfServeTypes.has(owner.accountType)) {
+    provider.moderationStatus = 'approved';
+    provider.moderationReason = undefined;
+    provider.isVerified = true;
+  } else {
+    provider.moderationStatus = 'pending';
+    provider.moderationReason = undefined;
+    provider.isVerified = false;
+  }
   await provider.save();
 
   return provider.toObject();
+}
+
+async function updateMineProducts(userId, products) {
+  const provider = await Provider.findOne({ ownerUser: userId, isActive: true });
+  if (!provider) {
+    throw Object.assign(new Error('Provider listing not found'), { status: 404 });
+  }
+  provider.products = normalizeProducts(products);
+
+  // Keep listing approved state rules consistent with upsertMine/updateMineAvatar.
+  const owner = await User.findById(userId).select('accountType').lean();
+  const selfServeTypes = new Set(['doctor', 'hospital_admin', 'pharmacy_admin']);
+  if (env.autoApproveProviderListings && owner && selfServeTypes.has(owner.accountType)) {
+    provider.moderationStatus = 'approved';
+    provider.moderationReason = undefined;
+    provider.isVerified = true;
+  } else {
+    provider.moderationStatus = 'pending';
+    provider.moderationReason = undefined;
+    provider.isVerified = false;
+  }
+
+  await provider.save();
+  return { ...provider.toObject(), products: coerceProductsForApi(provider.products) };
 }
 
 async function claimProvider({ userId, providerId }) {
@@ -266,6 +339,7 @@ module.exports = {
   getMine,
   upsertMine,
   updateMineAvatar,
+  updateMineProducts,
   claimProvider,
   listPendingModeration,
   moderateProvider,

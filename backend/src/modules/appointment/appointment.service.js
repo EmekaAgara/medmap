@@ -46,7 +46,10 @@ async function createRequest(patientUserId, { providerId, requestedStart, reques
       consultationPaymentRef = reference;
     } else {
       const shortfall = fee - balance;
-      const fund = await walletService.initFundWallet(patientUserId, shortfall);
+      const fund = await walletService.initFundWallet(patientUserId, shortfall, {
+        intent: 'appointment_topup',
+        providerId: String(provider._id),
+      });
       throw Object.assign(new Error('Add funds to your wallet to book this visit'), {
         status: 402,
         details: {
@@ -155,6 +158,15 @@ async function confirmAppointment(ownerUserId, appointmentId, { confirmedStart, 
   if (providerNote) appt.providerNote = String(providerNote).trim();
   await appt.save();
 
+  if (Number(appt.consultationFee) > 0 && appt.consultationPaymentRef) {
+    await walletService.settleProviderEarnings({
+      providerUserId: appt.providerOwnerUser,
+      grossAmount: Number(appt.consultationFee),
+      patientPaymentReference: appt.consultationPaymentRef,
+      meta: { kind: 'appointment', appointmentId: String(appt._id) },
+    });
+  }
+
   const lean = await Appointment.findById(appt._id).populate('provider', 'name').lean();
 
   await notifyUserPush({
@@ -186,6 +198,10 @@ async function rejectAppointment(ownerUserId, appointmentId, { rejectReason }) {
   }
   const reason = String(rejectReason || '').trim();
   if (!reason) throw Object.assign(new Error('Rejection reason is required'), { status: 400 });
+
+  if (Number(appt.consultationFee) > 0 && appt.consultationPaymentRef) {
+    await walletService.refundBillPayment(appt.consultationPaymentRef, { reason: 'appointment_rejected' });
+  }
 
   appt.status = 'rejected';
   appt.rejectReason = reason;
@@ -220,6 +236,15 @@ async function cancelAppointment(userId, appointmentId, { cancelReason }) {
   if (!isPatient && !isProvider) throw Object.assign(new Error('Forbidden'), { status: 403 });
   if (!['pending', 'confirmed'].includes(appt.status)) {
     throw Object.assign(new Error('This appointment cannot be cancelled'), { status: 400 });
+  }
+
+  const payRef = appt.consultationPaymentRef;
+  const consultFee = Number(appt.consultationFee) || 0;
+
+  if (consultFee > 0 && payRef) {
+    await walletService.refundBillPayment(payRef, {
+      reason: isPatient ? 'appointment_cancelled_by_patient' : 'appointment_cancelled_by_provider',
+    });
   }
 
   appt.status = 'cancelled';
@@ -297,6 +322,23 @@ async function rescheduleAppointment(userId, appointmentId, { requestedStart, re
   return lean;
 }
 
+async function addVisitSummary(providerOwnerUserId, appointmentId, { providerNote } = {}) {
+  const note = String(providerNote || '').trim();
+  if (!note) throw Object.assign(new Error('providerNote is required'), { status: 400 });
+
+  const appt = await Appointment.findById(appointmentId);
+  if (!appt) throw Object.assign(new Error('Appointment not found'), { status: 404 });
+  if (String(appt.providerOwnerUser) !== String(providerOwnerUserId)) {
+    throw Object.assign(new Error('Forbidden'), { status: 403 });
+  }
+  if (appt.status !== 'confirmed') {
+    throw Object.assign(new Error('Only confirmed appointments can be summarized'), { status: 400 });
+  }
+  appt.providerNote = note.slice(0, 500);
+  await appt.save();
+  return Appointment.findById(appt._id).populate('provider', 'name').lean();
+}
+
 module.exports = {
   createRequest,
   listAsPatient,
@@ -306,4 +348,5 @@ module.exports = {
   rejectAppointment,
   cancelAppointment,
   rescheduleAppointment,
+  addVisitSummary,
 };

@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,9 +19,19 @@ import { useRouter } from 'expo-router';
 import { useAuth, useThemeMode } from '../../_layout';
 import ScreenHeader from '../../components/ScreenHeader';
 import { apiRequest } from '../../../src/api/client';
-import { ui, spacing } from '../../../theme/tokens';
+import { ui, spacing, radii, shadows } from '../../../theme/tokens';
 
-const PAGE_LIMIT = 100;
+const PAGE_LIMIT = 20;
+
+function productPreviewLabel(p) {
+  if (p == null) return '';
+  if (typeof p === 'string') return p;
+  if (typeof p === 'object' && p.name != null) {
+    const pr = Math.max(0, Number(p.price) || 0);
+    return pr > 0 ? `${p.name} (₦${pr.toLocaleString()})` : `${p.name} (free)`;
+  }
+  return '';
+}
 
 function getInitials(name) {
   const parts = String(name || '')
@@ -126,7 +137,6 @@ export default function ProvidersPage() {
 
   useEffect(() => {
     if (!token) return;
-    if (!userCoords) return;
     setPage(1);
     fetchProviders(1, { append: false });
   }, [token, userCoords, type, searchText, openNowOnly, fetchProviders]);
@@ -220,8 +230,23 @@ export default function ProvidersPage() {
             {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
             {!loading && !providers.length ? <Text style={ui.caption(theme)}>No providers found.</Text> : null}
 
-            {providers.map((p) => (
-              <View key={p._id} style={[ui.card(theme), { marginBottom: spacing.md, padding: spacing.md }]}>
+            {providers.map((p) => {
+              const cardLift = Platform.OS === 'ios' ? shadows.cardDark : { elevation: 4 };
+              return (
+              <View
+                key={p._id}
+                style={[
+                  {
+                    marginBottom: spacing.md,
+                    padding: spacing.md,
+                    borderRadius: radii.lg,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    backgroundColor: theme.card,
+                  },
+                  cardLift,
+                ]}
+              >
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() =>
@@ -276,7 +301,12 @@ export default function ProvidersPage() {
                     ) : null}
                     {p.products?.length ? (
                       <Text style={[ui.caption(theme), styles.meta]} numberOfLines={1}>
-                        Products: {p.products.slice(0, 3).join(', ')}
+                        Products:{' '}
+                        {p.products
+                          .slice(0, 3)
+                          .map(productPreviewLabel)
+                          .filter(Boolean)
+                          .join(', ')}
                       </Text>
                     ) : null}
                   </View>
@@ -326,7 +356,7 @@ export default function ProvidersPage() {
                   ) : null}
                 </View>
               </View>
-            ))}
+            );})}
 
             <TouchableOpacity
               style={[ui.buttonOutline(theme), styles.loadMoreBtn]}

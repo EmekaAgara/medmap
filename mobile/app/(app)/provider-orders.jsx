@@ -50,6 +50,12 @@ export default function ProviderOrdersScreen() {
       {loading ? <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.lg }} /> : null}
       {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
       <ScrollView contentContainerStyle={{ paddingBottom: spacing['2xl'] }}>
+        <TouchableOpacity
+          style={[ui.buttonOutline(theme), { marginTop: spacing.md }]}
+          onPress={() => router.push('/(app)/provider-catalog')}
+        >
+          <Text style={ui.buttonText(theme)}>Manage catalog</Text>
+        </TouchableOpacity>
         {!loading && !items.length ? (
           <Text style={[ui.caption(theme), { marginTop: spacing.md }]}>No orders yet.</Text>
         ) : null}

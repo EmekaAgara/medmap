@@ -14,6 +14,7 @@ const transactionSchema = new mongoose.Schema(
         'loan_disbursement',
         'loan_repayment',
         'bill_payment',
+        'refund',
       ],
       required: true,
     },

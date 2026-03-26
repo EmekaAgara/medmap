@@ -33,10 +33,34 @@ export default function MessagesScreen() {
     }, [])
   );
 
+  const openMeddie = async () => {
+    try {
+      const res = await apiRequest('/messages/meddie/start', { method: 'POST', token, body: {} });
+      const conversationId = res.data?.conversationId;
+      if (conversationId) {
+        router.push({
+          pathname: '/(app)/provider-chat',
+          params: {
+            conversationId,
+            providerName: 'Meddie',
+          },
+        });
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   return (
     <ScrollView style={ui.screen(theme)}>
       <Text style={[ui.h2(theme), styles.title]}>Messages</Text>
       <Text style={ui.caption(theme)}>Your provider conversations.</Text>
+      <TouchableOpacity onPress={openMeddie} style={[ui.card(theme), styles.item]}>
+        <Text style={{ color: theme.text, fontWeight: '600' }}>Meddie</Text>
+        <Text style={[ui.caption(theme), { marginTop: 4 }]} numberOfLines={1}>
+          AI health assistant (uses your medical profile with consent)
+        </Text>
+      </TouchableOpacity>
       {loading ? <ActivityIndicator color={theme.primary} style={{ marginTop: spacing.md }} /> : null}
       {error ? <Text style={ui.errorText(theme)}>{error}</Text> : null}
       {!loading && conversations.length === 0 ? (

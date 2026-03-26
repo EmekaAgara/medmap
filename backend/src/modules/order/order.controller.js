@@ -1,12 +1,28 @@
 const { success, fail } = require('../../utils/responses');
 const orderService = require('./order.service');
 
+async function uploadPrescription(req, res) {
+  try {
+    const { providerId } = req.body || {};
+    if (!providerId) return fail(res, 'providerId is required', 400);
+    if (!req.file) return fail(res, 'No file uploaded', 400);
+    const data = await orderService.uploadPrescription({
+      buyerUserId: req.user.id,
+      providerId,
+      file: req.file,
+    });
+    return success(res, data, 'Prescription uploaded', 201);
+  } catch (err) {
+    return fail(res, err.message, err.status || 500, err.details ?? null);
+  }
+}
+
 async function create(req, res) {
   try {
     const data = await orderService.createOrder(req.user.id, req.body);
     return success(res, data, data.payment ? 'Order created' : 'Order completed');
   } catch (err) {
-    return fail(res, err.message, err.status || 500);
+    return fail(res, err.message, err.status || 500, err.details ?? null);
   }
 }
 
@@ -64,7 +80,21 @@ async function fulfill(req, res) {
   }
 }
 
+async function updateStatus(req, res) {
+  try {
+    const { status, note } = req.body || {};
+    const order = await orderService.updateStatusBySeller(req.user.id, req.params.id, {
+      status,
+      note,
+    });
+    return success(res, order, 'Order updated');
+  } catch (err) {
+    return fail(res, err.message, err.status || 500, err.details ?? null);
+  }
+}
+
 module.exports = {
+  uploadPrescription,
   create,
   completePay,
   listBuyer,
@@ -72,4 +102,5 @@ module.exports = {
   getOne,
   cancel,
   fulfill,
+  updateStatus,
 };

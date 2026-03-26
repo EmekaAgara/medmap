@@ -15,10 +15,12 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth, useThemeMode } from '../_layout';
 import ScreenHeader from '../components/ScreenHeader';
 import { apiRequest, apiUpload } from '../../src/api/client';
-import { ui, spacing } from '../../theme/tokens';
+import { ui, spacing, radii } from '../../theme/tokens';
+import { normalizeCatalogProducts } from '../../src/utils/catalog';
 
 const PROVIDER_TYPES = [
   { value: 'doctor', label: 'Doctor' },
@@ -27,24 +29,6 @@ const PROVIDER_TYPES = [
 ];
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-function normalizeProductRows(raw) {
-  if (!raw?.length) return [];
-  return raw
-    .map((p) => {
-      if (typeof p === 'string') {
-        const t = p.trim();
-        return t ? { name: t, price: 0 } : null;
-      }
-      if (p && typeof p === 'object' && p.name != null) {
-        const name = String(p.name).trim();
-        if (!name) return null;
-        return { name, price: Math.max(0, Number(p.price) || 0) };
-      }
-      return null;
-    })
-    .filter(Boolean);
-}
 
 function pad2(n) {
   return String(n).padStart(2, '0');
@@ -200,6 +184,8 @@ export default function ProviderListingScreen() {
   const [newService, setNewService] = useState('');
   const [newProductName, setNewProductName] = useState('');
   const [newProductPrice, setNewProductPrice] = useState('');
+  const [newProductDescription, setNewProductDescription] = useState('');
+  const [newProductImageUrl, setNewProductImageUrl] = useState('');
 
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [timePicker, setTimePicker] = useState(null); // 'start' | 'end' | null
@@ -250,7 +236,7 @@ export default function ProviderListingScreen() {
     }
 
     setServicesList(provider.services || []);
-    setProductsList(normalizeProductRows(provider.products || []));
+    setProductsList(normalizeCatalogProducts(provider.products || []));
   };
 
   const loadMine = useCallback(async () => {
@@ -372,9 +358,16 @@ export default function ProviderListingScreen() {
     const name = String(newProductName || '').trim();
     if (!name) return;
     const price = Math.max(0, Number(newProductPrice) || 0);
-    setProductsList((prev) => [...prev, { name, price }]);
+    const row = { name, price };
+    const desc = String(newProductDescription || '').trim();
+    const img = String(newProductImageUrl || '').trim();
+    if (desc) row.description = desc;
+    if (img) row.imageUrl = img;
+    setProductsList((prev) => [...prev, row]);
     setNewProductName('');
     setNewProductPrice('');
+    setNewProductDescription('');
+    setNewProductImageUrl('');
   };
 
   const removeItem = (kind, valueOrIndex) => {
@@ -413,7 +406,12 @@ export default function ProviderListingScreen() {
           availabilityText,
           workingHours: workingHoursText,
           services: servicesList,
-          products: productsList.map((p) => ({ name: p.name, price: p.price })),
+          products: productsList.map((p) => {
+            const o = { name: p.name, price: p.price };
+            if (p.description?.trim()) o.description = p.description.trim();
+            if (p.imageUrl?.trim()) o.imageUrl = p.imageUrl.trim();
+            return o;
+          }),
           location: {
             latitude,
             longitude,
@@ -422,7 +420,7 @@ export default function ProviderListingScreen() {
         },
       });
 
-      Alert.alert('Submitted for approval', 'Your provider listing is pending admin review.');
+      Alert.alert('Saved', 'Your listing has been updated. Clinician accounts are usually published immediately.');
       await loadMine();
     } catch (e) {
       setError(e.message || 'Unable to save listing');
@@ -688,53 +686,103 @@ export default function ProviderListingScreen() {
         </View>
 
         <View style={[ui.card(theme), { padding: spacing.md, marginBottom: spacing.md, backgroundColor: theme.card }]}>
-          <Text style={[ui.caption(theme), { fontWeight: '800', marginBottom: spacing.sm }]}>Products for sale</Text>
-          <Text style={[ui.caption(theme), { marginBottom: spacing.sm, color: theme.subtleText }]}>
-            Set price to 0 for free items.
+          <Text style={[ui.caption(theme), { fontWeight: '800', marginBottom: spacing.xs }]}>Products for sale</Text>
+          <Text style={[ui.caption(theme), { marginBottom: spacing.md, color: theme.subtleText }]}>
+            Add name, price (0 = free), optional description and image URL for your shop.
           </Text>
-          <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center', marginBottom: spacing.sm, flexWrap: 'wrap' }}>
-            <TextInput
-              value={newProductName}
-              onChangeText={setNewProductName}
-              placeholder="Product name"
-              placeholderTextColor={theme.subtleText}
-              style={[ui.input(theme), { flex: 1, minWidth: 120, marginBottom: 0 }]}
-            />
-            <TextInput
-              value={newProductPrice}
-              onChangeText={setNewProductPrice}
-              placeholder="₦ (0 = free)"
-              placeholderTextColor={theme.subtleText}
-              keyboardType="numeric"
-              style={[ui.input(theme), { width: 100, marginBottom: 0 }]}
-            />
-            <TouchableOpacity style={[ui.buttonPrimary(theme)]} onPress={() => addItem('product')}>
-              <Text style={ui.buttonTextPrimary(theme)}>Add</Text>
-            </TouchableOpacity>
-          </View>
+          <TextInput
+            value={newProductName}
+            onChangeText={setNewProductName}
+            placeholder="Product name *"
+            placeholderTextColor={theme.subtleText}
+            style={[ui.input(theme), { marginBottom: spacing.sm }]}
+          />
+          <TextInput
+            value={newProductPrice}
+            onChangeText={setNewProductPrice}
+            placeholder="Price in ₦ (0 for free)"
+            placeholderTextColor={theme.subtleText}
+            keyboardType="numeric"
+            style={[ui.input(theme), { marginBottom: spacing.sm }]}
+          />
+          <TextInput
+            value={newProductDescription}
+            onChangeText={setNewProductDescription}
+            placeholder="Short description (optional)"
+            placeholderTextColor={theme.subtleText}
+            multiline
+            style={[ui.input(theme), { marginBottom: spacing.sm, minHeight: 72, textAlignVertical: 'top' }]}
+          />
+          <TextInput
+            value={newProductImageUrl}
+            onChangeText={setNewProductImageUrl}
+            placeholder="Image URL (optional)"
+            placeholderTextColor={theme.subtleText}
+            autoCapitalize="none"
+            style={[ui.input(theme), { marginBottom: spacing.md }]}
+          />
+          <TouchableOpacity
+            onPress={() => addItem('product')}
+            activeOpacity={0.88}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              backgroundColor: theme.primary,
+              borderRadius: radii.lg,
+              paddingVertical: spacing.md,
+              paddingHorizontal: spacing.lg,
+            }}
+          >
+            <Ionicons name="add-circle" size={22} color={theme.primaryForeground} />
+            <Text style={{ color: theme.primaryForeground, fontWeight: '800', fontSize: 16 }}>Add to catalog</Text>
+          </TouchableOpacity>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
             {productsList.map((p, i) => (
               <TouchableOpacity
                 key={`${p.name}-${p.price}-${i}`}
                 onPress={() => removeItem('product', i)}
+                activeOpacity={0.85}
                 style={{
                   borderWidth: 1,
                   borderColor: theme.border,
-                  borderRadius: 999,
-                  paddingVertical: spacing.xs,
-                  paddingHorizontal: spacing.md,
+                  borderRadius: radii.md,
+                  padding: spacing.sm,
                   backgroundColor: theme.secondary,
                   flexDirection: 'row',
                   alignItems: 'center',
-                  gap: spacing.xs,
+                  gap: spacing.sm,
                 }}
               >
-                <Text style={{ color: theme.text, fontWeight: '800' }} numberOfLines={1}>
-                  {p.name}
-                  {p.price > 0 ? ` · ₦${Number(p.price).toLocaleString()}` : ' · Free'}
-                </Text>
-                <Text style={{ color: theme.subtleText, fontWeight: '900' }}>×</Text>
+                {p.imageUrl ? (
+                  <Image source={{ uri: p.imageUrl }} style={{ width: 44, height: 44, borderRadius: radii.sm }} />
+                ) : (
+                  <View
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: radii.sm,
+                      backgroundColor: theme.card,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                    }}
+                  >
+                    <Ionicons name="cube-outline" size={20} color={theme.subtleText} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontWeight: '800' }} numberOfLines={2}>
+                    {p.name}
+                  </Text>
+                  <Text style={{ color: theme.primary, fontWeight: '700', marginTop: 2 }}>
+                    {p.price > 0 ? `₦${Number(p.price).toLocaleString()}` : 'Free'}
+                  </Text>
+                </View>
+                <Ionicons name="close-circle" size={24} color={theme.subtleText} />
               </TouchableOpacity>
             ))}
           </View>

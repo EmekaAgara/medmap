@@ -57,19 +57,20 @@ const PRODUCTS = [
 const WORKING_HOURS = ['Mon–Fri 8am–6pm', 'Mon–Sat 9am–9pm', '24/7', 'Weekdays 9am–5pm', 'Sun–Thu 8am–7pm'];
 const AVAILABILITY_TEXT = ['Open daily', 'Open weekdays', 'Open 24/7 for urgent cases', 'Walk-ins welcome', 'Emergency-ready'];
 
-const CITY_CENTERS = [
-  { name: 'Lagos', lat: 6.5244, lng: 3.3792, weight: 0.65 },
-  { name: 'Abuja', lat: 9.0765, lng: 7.3986, weight: 0.08 },
-  { name: 'Ibadan', lat: 7.3775, lng: 3.947, weight: 0.06 },
-  { name: 'Port Harcourt', lat: 4.8156, lng: 7.0498, weight: 0.06 },
-  { name: 'Kano', lat: 12.0, lng: 8.5, weight: 0.05 },
-  { name: 'Enugu', lat: 6.4478, lng: 7.5046, weight: 0.03 },
-  { name: 'Benin City', lat: 6.3383, lng: 5.6147, weight: 0.03 },
-  { name: 'Kaduna', lat: 10.5222, lng: 7.4189, weight: 0.03 },
-  { name: 'Jos', lat: 9.9249, lng: 8.8917, weight: 0.02 },
-  { name: 'Owerri', lat: 5.485, lng: 7.033, weight: 0.02 },
-  { name: 'Calabar', lat: 4.95, lng: 8.33, weight: 0.02 },
-  { name: 'Maiduguri', lat: 11.8333, lng: 13.15, weight: 0.02 },
+/** Land-only bounding boxes (mostly inland / metro cores) — ~65% Lagos, rest spread across Nigeria */
+const CITY_LAND_BOXES = [
+  { name: 'Lagos', weight: 0.65, minLat: 6.48, maxLat: 6.72, minLng: 3.25, maxLng: 3.58 },
+  { name: 'Abuja', weight: 0.08, minLat: 8.98, maxLat: 9.18, minLng: 7.35, maxLng: 7.52 },
+  { name: 'Ibadan', weight: 0.06, minLat: 7.32, maxLat: 7.45, minLng: 3.85, maxLng: 4.05 },
+  { name: 'Port Harcourt', weight: 0.06, minLat: 4.76, maxLat: 4.88, minLng: 6.98, maxLng: 7.12 },
+  { name: 'Kano', weight: 0.05, minLat: 11.95, maxLat: 12.05, minLng: 8.48, maxLng: 8.58 },
+  { name: 'Enugu', weight: 0.03, minLat: 6.42, maxLat: 6.48, minLng: 7.48, maxLng: 7.56 },
+  { name: 'Benin City', weight: 0.03, minLat: 6.28, maxLat: 6.38, minLng: 5.58, maxLng: 5.68 },
+  { name: 'Kaduna', weight: 0.03, minLat: 10.48, maxLat: 10.58, minLng: 7.38, maxLng: 7.48 },
+  { name: 'Jos', weight: 0.02, minLat: 9.88, maxLat: 9.98, minLng: 8.84, maxLng: 8.96 },
+  { name: 'Owerri', weight: 0.02, minLat: 5.46, maxLat: 5.52, minLng: 7.02, maxLng: 7.08 },
+  { name: 'Calabar', weight: 0.02, minLat: 4.94, maxLat: 5.02, minLng: 8.28, maxLng: 8.38 },
+  { name: 'Maiduguri', weight: 0.02, minLat: 11.78, maxLat: 11.88, minLng: 13.05, maxLng: 13.18 },
 ];
 
 function weightedPick(arr) {
@@ -82,8 +83,15 @@ function weightedPick(arr) {
   return arr[arr.length - 1];
 }
 
-function jitter(value, maxAbsDelta) {
-  return value + (Math.random() * 2 - 1) * maxAbsDelta;
+function randomPointInLandBox(box) {
+  const lat = box.minLat + Math.random() * (box.maxLat - box.minLat);
+  const lng = box.minLng + Math.random() * (box.maxLng - box.minLng);
+  return { lat, lng, name: box.name };
+}
+
+function weightedLandPoint() {
+  const box = weightedPick(CITY_LAND_BOXES);
+  return randomPointInLandBox(box);
 }
 
 function pickN(list, n) {
@@ -92,16 +100,19 @@ function pickN(list, n) {
   return copy.slice(0, n);
 }
 
-/** Priced catalog: some items free (price 0), some paid (NGN). */
+/** Priced catalog: images + short copy for storefront; some items free. */
 function buildProductCatalog(i) {
   const numProducts = 2 + (i % 5);
   const names = pickN(PRODUCTS, numProducts);
   return names.map((name, idx) => {
     const lower = String(name).toLowerCase();
     const isFree = lower.includes('free') || (i + idx) % 6 === 0;
+    const price = isFree ? 0 : 800 + ((i * 3 + idx * 7) % 120) * 500;
     return {
       name,
-      price: isFree ? 0 : 800 + ((i * 3 + idx * 7) % 120) * 500,
+      price,
+      description: `${name} — stocked for patient care. Sold by Mpd providers; verify suitability with your clinician.`,
+      imageUrl: `https://picsum.photos/seed/mpd-p${i}-${idx}/480/480`,
     };
   });
 }
@@ -131,7 +142,7 @@ async function run() {
   // based on a consistent email prefix.
   const emailPrefix = 'seed_nigeria_provider_';
   await User.deleteMany({ email: { $regex: `^${emailPrefix}` } });
-  await Provider.deleteMany({ name: { $regex: '^MedMap Demo' } });
+  await Provider.deleteMany({ name: { $regex: '^(MedMap Demo|Mpd) ' } });
   await User.deleteMany({ email: { $regex: '^seed_patient_' } });
   await Appointment.deleteMany({ patientNote: 'Demo appointment for MedMap' });
 
@@ -146,12 +157,10 @@ async function run() {
     const accountType = accountTypeFromIndex(i);
     const providerType = providerTypeFromAccountType(accountType);
 
-    const city = weightedPick(CITY_CENTERS);
-    const latDelta = city.name === 'Lagos' ? 0.06 : 0.1;
-    const lngDelta = city.name === 'Lagos' ? 0.08 : 0.12;
-
-    const lat = jitter(city.lat, latDelta);
-    const lng = jitter(city.lng, lngDelta);
+    const pt = weightedLandPoint();
+    const lat = pt.lat;
+    const lng = pt.lng;
+    const city = { name: pt.name };
 
     const email = `${emailPrefix}${i}@example.com`;
     const phone = `+234800${String(100000 + i).slice(-6)}`; // simple deterministic phone
@@ -173,8 +182,8 @@ async function run() {
     createdProviders.push({
       ownerUser: user._id,
       providerType,
-      name: `MedMap Demo ${providerType} ${i}`,
-      description: 'Demo provider listing seeded for Phase 1–2 discovery.',
+      name: `Mpd ${providerType} ${i}`,
+      description: 'Mpd provider listing — primary care, pharmacy, or hospital services.',
       hourlyRate: Math.random() < 0.12 ? 0 : 7000 + (i % 30) * 250,
       imageUrl: `https://picsum.photos/seed/medmap-${i}/128/128`,
       services: pickN(SERVICES, numServices),
@@ -207,11 +216,10 @@ async function run() {
     const patientEmail = `seed_patient_${j}@example.com`;
     const patientPhone = `+234801${String(200000 + j).slice(-6)}`;
 
-    const city = weightedPick(CITY_CENTERS);
-    const latDelta = city.name === 'Lagos' ? 0.04 : 0.08;
-    const lngDelta = city.name === 'Lagos' ? 0.06 : 0.1;
-    const lat = jitter(city.lat, latDelta);
-    const lng = jitter(city.lng, lngDelta);
+    const pt = weightedLandPoint();
+    const lat = pt.lat;
+    const lng = pt.lng;
+    const city = { name: pt.name };
 
     const patient = await User.create({
       email: patientEmail,

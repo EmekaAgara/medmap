@@ -73,7 +73,7 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 
 ---
 
-## Phase 3: Payments + Wallet (Interswitch Integration) (6-10 weeks)
+## Phase 3: Payments + Wallet (Interswitch Integration)
 
 **Goal:** enable full in-app transactions.
 
@@ -97,7 +97,7 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 
 ---
 
-## Phase 4: Pharmacy Commerce (5-8 weeks)
+## Phase 4: Commerce system
 
 **Goal:** support medicine/product purchases end-to-end.
 
@@ -107,13 +107,13 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 - Prescription upload flow (for restricted medicines).
 - Cart + checkout.
 - Delivery/pickup options and order status tracking.
-- Pharmacy order management dashboard.
+- product order management dashboard.
 
-**Success metric:** order completion rate and repeat pharmacy purchases.
+**Success metric:** order completion rate and repeat product purchases.
 
 ---
 
-## Phase 5: Medical Timeline + AI Health Assistant (8-12 weeks)
+## Phase 5: Medical Timeline + AI Health Assistant
 
 **Goal:** improve continuity of care and personalized support.
 
@@ -130,6 +130,8 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 - Safety policy:
   - AI provides assistance, not final diagnosis
   - Escalate to licensed providers where needed
+  - The Ai should me called Meddie he should be in the messages he should be able to access the patients full medical info medical history allergies etc to be able to provide help and recommendations when they chat with it
+  - Also patients should be able to add allergies and other key info needed like weight height bood group etc wehn completing their profile and the ai should be able to get and use all these info for recomendations and conversatipons the ai should be a medical expert and should respond as such
 
 **Success metric:** better retention and fewer missed appointments.
 
@@ -181,3 +183,17 @@ Healthcare professionals, hospitals, and pharmacies can list their services and 
 4. Phase 4 (pharmacy commerce)
 5. Phase 5 (AI + longitudinal care)
 6. Phase 6 (scale and ecosystem integrations)
+
+npm run seed:nigeria:500
+
+1. Webhook URL (status webhook)
+   POST /api/v1/wallets/webhooks/interswitch
+
+So the full URL you must set in the Interswitch dashboard is:
+
+https://<YOUR_API_HOST>[/<PORT_IF_NEEDED>]/api/v1/wallets/webhooks/interswitch
+
+2. Web Checkout “redirect notification” URL (site_redirect_url callback)
+   POST /api/v1/wallets/webpay/redirect
+
+Full URL: https://<YOUR_API_HOST>[/<PORT_IF_NEEDED>]/api/v1/wallets/webpay/redirect

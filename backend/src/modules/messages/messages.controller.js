@@ -51,9 +51,19 @@ async function reply(req, res) {
   }
 }
 
+async function startMeddie(req, res) {
+  try {
+    const data = await messagesService.startMeddieConversation(req.user.id);
+    return success(res, data);
+  } catch (err) {
+    return fail(res, err.message, err.status || 500);
+  }
+}
+
 module.exports = {
   sendToProvider,
   listConversations,
   listMessages,
   reply,
+  startMeddie,
 };

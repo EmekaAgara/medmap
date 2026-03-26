@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { useThemeMode } from '../../../_layout';
@@ -19,10 +20,20 @@ import { apiRequest } from '../../../../src/api/client';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ui, spacing, radii, typography } from '../../../../theme/tokens';
+import { ui, spacing, radii, typography, shadows } from '../../../../theme/tokens';
 import ScreenHeader from '../../../components/ScreenHeader';
 
-const PAGE_LIMIT = 400;
+const PAGE_LIMIT = 10;
+
+function productPreviewLabel(p) {
+  if (p == null) return '';
+  if (typeof p === 'string') return p;
+  if (typeof p === 'object' && p.name != null) {
+    const pr = Math.max(0, Number(p.price) || 0);
+    return pr > 0 ? `${p.name} (₦${pr.toLocaleString()})` : `${p.name} (free)`;
+  }
+  return '';
+}
 
 function getInitials(name) {
   const parts = String(name || '')
@@ -50,8 +61,6 @@ export default function HomeScreen() {
   const [search, setSearch] = useState('');
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState('');
   const [claimingProviderId, setClaimingProviderId] = useState('');
   const [radiusKm] = useState(50000);
@@ -113,8 +122,6 @@ export default function HomeScreen() {
         const items = res.data || [];
         if (append) setProviders((prev) => [...prev, ...items]);
         else setProviders(items);
-
-        setHasMore(items.length === PAGE_LIMIT);
       } catch (e) {
         setError(e.message || 'Could not load providers');
       } finally {
@@ -125,7 +132,6 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    setPage(1);
     fetchProviders(typeRef.current, searchRef.current, 1);
   }, []);
 
@@ -141,7 +147,7 @@ export default function HomeScreen() {
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
       setUserCoords(coords);
-      setLocationLabel('Sorted by distance from you');
+      setLocationLabel('Showing the 10 nearest providers by distance');
     } catch (e) {
       setError(e.message || 'Could not get location');
     }
@@ -155,7 +161,6 @@ export default function HomeScreen() {
   useEffect(() => {
     // Re-fetch to sort by distance once we have coordinates.
     if (userCoords) {
-      setPage(1);
       fetchProviders(typeRef.current, searchRef.current, 1);
     }
   }, [userCoords]);
@@ -167,7 +172,6 @@ export default function HomeScreen() {
     }
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      setPage(1);
       fetchProviders(typeRef.current, search, 1);
     }, 400);
     return () => {
@@ -368,7 +372,6 @@ export default function HomeScreen() {
                     value={openNowOnly}
                     onValueChange={(v) => {
                       setOpenNowOnly(v);
-                      setPage(1);
                       fetchProviders(typeRef.current, searchRef.current, 1, { openNowOnlyOverride: v });
                     }}
                   />
@@ -399,7 +402,6 @@ export default function HomeScreen() {
                       ]}
                       onPress={() => {
                         setType(p.value);
-                        setPage(1);
                         fetchProviders(p.value, searchRef.current, 1);
                         setProviderTypeModalOpen(false);
                       }}
@@ -421,11 +423,23 @@ export default function HomeScreen() {
                 <Text style={ui.caption(theme)}>No providers found.</Text>
               ) : null}
 
-              {providers.map((provider) => (
+              {providers.map((provider) => {
+                const cardLift = Platform.OS === 'ios' ? shadows.cardDark : { elevation: 4 };
+                return (
                 <TouchableOpacity
                   key={provider._id}
                   activeOpacity={0.9}
-                  style={[ui.card(theme), styles.card, { padding: spacing.md }]}
+                  style={[
+                    {
+                      padding: spacing.md,
+                      marginBottom: spacing.md,
+                      borderRadius: radii.lg,
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      backgroundColor: theme.card,
+                    },
+                    cardLift,
+                  ]}
                   onPress={() =>
                     router.push({
                       pathname: '/(app)/provider-details/[id]',
@@ -473,7 +487,12 @@ export default function HomeScreen() {
 
                     {provider.products?.length ? (
                       <Text style={[ui.caption(theme), styles.metaLine]} numberOfLines={1}>
-                        Products: {provider.products.slice(0, 2).join(', ')}
+                        Products:{' '}
+                        {provider.products
+                          .slice(0, 2)
+                          .map(productPreviewLabel)
+                          .filter(Boolean)
+                          .join(', ')}
                       </Text>
                     ) : null}
                   </View>
@@ -496,13 +515,13 @@ export default function HomeScreen() {
                     </View>
                   ) : null}
                 </TouchableOpacity>
-              ))}
+              );})}
 
               <TouchableOpacity
                 style={[ui.buttonOutline(theme), styles.viewAllBtn]}
                 onPress={() => router.push('/(app)/providers')}
               >
-                <Text style={ui.buttonText(theme)}>View all providers</Text>
+                <Text style={ui.buttonText(theme)}>Browse all providers (paginated)</Text>
               </TouchableOpacity>
             </View>
           </View>

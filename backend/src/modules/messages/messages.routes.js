@@ -10,5 +10,6 @@ router.get('/conversations', messagesController.listConversations);
 router.get('/conversations/:conversationId', messagesController.listMessages);
 router.post('/conversations/:conversationId/reply', chatLimiter, messagesController.reply);
 router.post('/provider', chatLimiter, messagesController.sendToProvider);
+router.post('/meddie/start', messagesController.startMeddie);
 
 module.exports = router;

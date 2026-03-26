@@ -47,6 +47,8 @@ export default function AppLayout() {
         <Stack.Screen name="provider-appointments" options={{ headerShown: false }} />
         <Stack.Screen name="orders" options={{ headerShown: false }} />
         <Stack.Screen name="provider-orders" options={{ headerShown: false }} />
+        <Stack.Screen name="provider-shop" options={{ headerShown: false }} />
+        <Stack.Screen name="wallet" options={{ headerShown: false }} />
       </Stack>
     </>
   );
