@@ -6,7 +6,9 @@ MedMap helps users quickly find and connect with nearby healthcare providers suc
 
 ## Links
 
-- **Mobile app build link (APK):** `https://expo.dev/artifacts/eas/cxw9d5dRV5GELP3GA5dyxk.apk`
+- **Mobile app build link (APK):** https://expo.dev/artifacts/eas/cxw9d5dRV5GELP3GA5dyxk.apk
+
+-- **Google Drive** -- https://drive.google.com/drive/folders/1xyJgYja_nlB9WOkbV4rgGvaN4M01e7DV?usp=sharing
 
 ## What it does
 
@@ -34,7 +36,7 @@ MedMap helps users quickly find and connect with nearby healthcare providers suc
 
 ## How to run the app
 
-- - **Mobile app build link (Expo / TestFlight / Play internal testing):** `https://expo.dev/artifacts/eas/cxw9d5dRV5GELP3GA5dyxk.apk`
+- - **Download the apk file here:** https://expo.dev/artifacts/eas/cxw9d5dRV5GELP3GA5dyxk.apk
 
 -- Create a new account or login with the details below to test the app
 
