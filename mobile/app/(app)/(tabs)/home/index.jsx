@@ -472,112 +472,89 @@ export default function HomeScreen() {
             style={ui.input(theme)}
           />
 
-          {locationLabel ? (
-            <Text
-              style={[
-                ui.caption(theme),
-                { marginTop: spacing.sm, marginBottom: spacing.md },
-              ]}
-            >
-              {locationLabel}
-            </Text>
-          ) : null}
-
-          <View style={styles.filterLayout}>
-            <View style={styles.filterSidebar}>
-              <View style={styles.filterLeft}>
-                <Text style={[ui.caption(theme), { marginBottom: spacing.xs }]}>
-                  Provider type
-                </Text>
-                <TouchableOpacity
-                  style={[ui.buttonOutline(theme), styles.providerTypeDropdown]}
-                  onPress={() => {
-                    hapticTap();
-                    setProviderTypeModalOpen(true);
-                  }}
-                  activeOpacity={0.9}
-                >
-                  <Text
-                    style={[
-                      ui.buttonText(theme),
-                      styles.providerTypeDropdownText,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {providerTypeLabel}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={theme.subtleText}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.filterRight}>
-                <Text style={[ui.caption(theme), { marginBottom: spacing.xs }]}>
-                  Open now
-                </Text>
-                <View
-                  style={[styles.openNowRow, { borderColor: theme.border }]}
-                >
-                  <Text style={{ color: theme.subtleText, fontSize: 12 }}>
-                    {openNowOnly ? "Open" : "Any"}
-                  </Text>
-                  <Switch
-                    value={openNowOnly}
-                    onValueChange={(v) => {
-                      hapticToggle();
-                      setOpenNowOnly(v);
-                      fetchProviders(typeRef.current, searchRef.current, 1, {
-                        openNowOnlyOverride: v,
-                      });
-                    }}
-                  />
-                </View>
-              </View>
-            </View>
-
-            {providerTypeModalOpen ? (
-              <View
+          <View style={styles.homeFilterRow}>
+            <View style={styles.homeFilterWrap}>
+              <TouchableOpacity
                 style={[
-                  styles.providerTypeInlineMenu,
-                  { backgroundColor: theme.card, borderColor: theme.border },
+                  styles.homeFilterDropdownBtn,
+                  { borderColor: theme.border, backgroundColor: theme.secondary },
                 ]}
+                onPress={() => {
+                  hapticTap();
+                  setProviderTypeModalOpen((v) => !v);
+                }}
+                activeOpacity={0.9}
               >
-                {providerTypes.map((p) => {
-                  const active = p.value === type;
-                  return (
-                    <TouchableOpacity
-                      key={p.value || "all"}
-                      style={[
-                        styles.providerTypeInlineOption,
-                        active
-                          ? { backgroundColor: theme.primary + "10" }
-                          : null,
-                      ]}
-                      onPress={() => {
-                        hapticTap();
-                        setType(p.value);
-                        fetchProviders(p.value, searchRef.current, 1);
-                        setProviderTypeModalOpen(false);
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: theme.text,
-                          fontWeight: active ? "800" : "600",
+                <Text style={{ color: theme.text, fontSize: 12 }} numberOfLines={1}>
+                  {providerTypeLabel}
+                </Text>
+                <Ionicons
+                  name={providerTypeModalOpen ? "chevron-up" : "chevron-down"}
+                  size={14}
+                  color={theme.subtleText}
+                />
+              </TouchableOpacity>
+
+              {providerTypeModalOpen ? (
+                <View
+                  style={[
+                    styles.homeFilterMenu,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
+                  {providerTypes.map((p) => {
+                    const active = p.value === type;
+                    return (
+                      <TouchableOpacity
+                        key={p.value || "all"}
+                        style={[
+                          styles.homeFilterMenuItem,
+                          active ? { backgroundColor: theme.primary + "12" } : null,
+                        ]}
+                        onPress={() => {
+                          hapticTap();
+                          setType(p.value);
+                          fetchProviders(p.value, searchRef.current, 1);
+                          setProviderTypeModalOpen(false);
                         }}
                       >
-                        {p.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
+                        <Text
+                          style={{
+                            color: active ? theme.text : theme.subtleText,
+                            fontWeight: active ? "800" : "600",
+                          }}
+                        >
+                          {p.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
+            </View>
 
-            <View style={{ flex: 1 }}>
+            <View
+              style={[
+                styles.homeTogglePill,
+                { borderColor: theme.border, backgroundColor: theme.secondary },
+              ]}
+            >
+              <Switch
+                value={openNowOnly}
+                onValueChange={(v) => {
+                  hapticToggle();
+                  setOpenNowOnly(v);
+                  fetchProviders(typeRef.current, searchRef.current, 1, {
+                    openNowOnlyOverride: v,
+                  });
+                }}
+                trackColor={{ false: theme.border, true: theme.primary + "88" }}
+                thumbColor={openNowOnly ? theme.primary : theme.subtleText}
+              />
+            </View>
+          </View>
+
+          <View style={{ flex: 1 }}>
               {loading ? (
                 <View style={{ marginTop: spacing.md, gap: spacing.md }}>
                   {Array.from({ length: 3 }).map((_, idx) => (
@@ -689,69 +666,108 @@ export default function HomeScreen() {
                         </View>
                       )}
                       <View style={styles.cardMain}>
-                        <Text
-                          style={[styles.providerName, { color: theme.text }]}
-                        >
-                          {provider.name}
-                        </Text>
-                        <View
-                          style={[
-                            styles.typeChip,
-                            {
-                              borderColor: theme.border,
-                              backgroundColor: theme.secondary,
-                            },
-                          ]}
-                        >
+                        <View style={styles.cardTopRow}>
                           <Text
-                            style={[
-                              ui.caption(theme),
-                              { textTransform: "capitalize" },
-                            ]}
+                            style={[styles.providerName, { color: theme.text }]}
+                            numberOfLines={1}
                           >
-                            {provider.providerType}
+                            {provider.name}
                           </Text>
-                        </View>
-                        {provider.hourlyRate === 0 ? (
-                          <Text style={[ui.caption(theme), styles.meta]}>
-                            Free
-                          </Text>
-                        ) : provider.hourlyRate ? (
-                          <Text style={[ui.caption(theme), styles.meta]}>
-                            ₦{Number(provider.hourlyRate).toLocaleString()}/hr
-                          </Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.cardRight}>
-                        <View
-                          style={[
-                            styles.statusPill,
-                            {
-                              backgroundColor: provider.isOpenNow
-                                ? theme.success + "18"
-                                : theme.error + "18",
-                            },
-                          ]}
-                        >
-                          <Text
+                          <View
                             style={[
-                              styles.badge,
+                              styles.statusPill,
                               {
-                                color: provider.isOpenNow
-                                  ? theme.success
-                                  : theme.error,
+                                backgroundColor: provider.isOpenNow
+                                  ? theme.success + "18"
+                                  : theme.error + "18",
                               },
                             ]}
                           >
-                            {provider.isOpenNow ? "Open" : "Closed"}
-                          </Text>
+                            <Text
+                              style={[
+                                styles.badge,
+                                {
+                                  color: provider.isOpenNow
+                                    ? theme.success
+                                    : theme.error,
+                                },
+                              ]}
+                            >
+                              {provider.isOpenNow ? "Open" : "Closed"}
+                            </Text>
+                          </View>
                         </View>
-                        {provider.distanceKm != null ? (
-                          <Text style={[ui.caption(theme), styles.meta]}>
-                            {provider.distanceKm} km • ETA ~
-                            {Math.max(1, Math.round(provider.distanceKm * 2))}m
-                          </Text>
-                        ) : null}
+
+                        <View style={styles.cardSubRow}>
+                          <View
+                            style={[
+                              styles.typeChip,
+                              {
+                                borderColor: theme.border,
+                                backgroundColor: theme.secondary,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                ui.caption(theme),
+                                { textTransform: "capitalize" },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {provider.providerType}
+                            </Text>
+                          </View>
+
+                          {provider.hourlyRate === 0 ? (
+                            <View
+                              style={[
+                                styles.metaChip,
+                                {
+                                  borderColor: theme.border,
+                                  backgroundColor: theme.secondary,
+                                },
+                              ]}
+                            >
+                              <Text style={[ui.caption(theme), { color: theme.text }]}>
+                                Free
+                              </Text>
+                            </View>
+                          ) : provider.hourlyRate ? (
+                            <View
+                              style={[
+                                styles.metaChip,
+                                {
+                                  borderColor: theme.border,
+                                  backgroundColor: theme.secondary,
+                                },
+                              ]}
+                            >
+                              <Text style={[ui.caption(theme), { color: theme.text }]}>
+                                ₦{Number(provider.hourlyRate).toLocaleString()}/hr
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {provider.distanceKm != null ? (
+                            <View
+                              style={[
+                                styles.distanceChip,
+                                {
+                                  borderColor: theme.border,
+                                  backgroundColor: theme.secondary,
+                                },
+                              ]}
+                            >
+                              <Text style={[ui.caption(theme), { color: theme.subtleText }]}>
+                                {provider.distanceKm} km · ~
+                                {Math.max(1, Math.round(provider.distanceKm * 2))}m
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+
+                        {/* distance/ETA now shown as a compact chip above */}
                       </View>
                     </View>
 
@@ -796,7 +812,6 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
         {user?.accountType === "patient" ? (
           <View
             style={[
@@ -977,6 +992,54 @@ const styles = {
     paddingVertical: spacing.xs,
     height: 42,
   },
+  homeFilterRow: {
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  homeFilterWrap: {
+    position: "relative",
+    alignSelf: "flex-start",
+  },
+  homeFilterDropdownBtn: {
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    height: 42,
+    minWidth: 120,
+    maxWidth: 150,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.xs,
+  },
+  homeFilterMenu: {
+    position: "absolute",
+    top: 46,
+    left: 0,
+    width: 150,
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.xs,
+    zIndex: 30,
+  },
+  homeFilterMenuItem: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.sm,
+  },
+  homeTogglePill: {
+    height: 42,
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   providerTypeInlineMenu: {
     width: "48%",
     marginTop: spacing.xs,
@@ -1040,17 +1103,28 @@ const styles = {
     borderRadius: radii.lg,
     borderWidth: 1,
   },
-  cardMain: { flex: 1 },
-  cardRight: { alignItems: "flex-end", marginLeft: spacing.sm },
+  cardMain: { flex: 1, minWidth: 0 },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  cardSubRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
   rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  providerName: { fontSize: 16, fontWeight: "700" },
+  providerName: { fontSize: 16, fontWeight: "800", flex: 1 },
   typeChip: {
     alignSelf: "flex-start",
-    marginTop: spacing.xs,
     borderRadius: radii.pill,
     borderWidth: 1,
     paddingHorizontal: spacing.sm,
@@ -1062,7 +1136,21 @@ const styles = {
     paddingVertical: 3,
   },
   badge: { fontSize: 12, fontWeight: "600" },
-  meta: { marginTop: spacing.xs },
+  rateText: { color: "#999" },
+  metaChip: {
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  distanceChip: {
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    marginLeft: "auto",
+  },
+  distanceText: { marginTop: spacing.xs },
   cardMetaBlock: {
     marginTop: spacing.sm,
     paddingTop: spacing.sm,
@@ -1079,6 +1167,14 @@ const styles = {
     justifyContent: "center",
   },
   avatarInitials: { fontWeight: "800", fontSize: 13 },
-  cardHeader: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
-  avatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 1 },
+  cardHeader: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
+  avatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 1 },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 };
