@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { View, Text, TouchableOpacity, ActivityIndicator, Switch, Alert, TextInput } from 'react-native';
-import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useAuth, useThemeMode } from '../../../_layout';
@@ -114,15 +114,19 @@ export default function ExploreScreen() {
 
         <MapView
           style={styles.map(theme)}
-          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           initialRegion={initialRegion}
           customMapStyle={theme.mode === 'dark' ? DARK_MAP_STYLE : []}
-          userInterfaceStyle={theme.mode === 'dark' ? 'dark' : 'light'}
+          {...(Platform.OS === 'ios'
+            ? { userInterfaceStyle: theme.mode === 'dark' ? 'dark' : 'light' }
+            : {})}
         >
           {userCoords ? (
             <Marker coordinate={userCoords} title="You" pinColor={theme.primary} />
           ) : null}
           {providers.map((p) => {
+            const latitude = Number(p.location?.coordinates?.[1]);
+            const longitude = Number(p.location?.coordinates?.[0]);
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
             const km = p.distanceKm != null ? Number(p.distanceKm) : null;
             const eta = etaFromKm(km);
             const metaLine = [
@@ -136,10 +140,7 @@ export default function ExploreScreen() {
             return (
               <Marker
                 key={p._id}
-                coordinate={{
-                  latitude: p.location?.coordinates?.[1] ?? 0,
-                  longitude: p.location?.coordinates?.[0] ?? 0,
-                }}
+                coordinate={{ latitude, longitude }}
                 onPress={() => {
                   hapticTap();
                 }}

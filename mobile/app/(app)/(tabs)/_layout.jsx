@@ -8,10 +8,10 @@ import { typography } from "../../../theme/tokens";
 const tabHaptic = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
 const TAB_ICONS = {
-  Home:     { active: "home",          inactive: "home-outline" },
-  Explore:  { active: "map",           inactive: "map-outline" },
-  Messages: { active: "chatbubble",    inactive: "chatbubble-outline" },
-  Profile:  { active: "person-circle", inactive: "person-circle-outline" },
+  Home: { active: "home", inactive: "home-outline" },
+  Explore: { active: "map", inactive: "map-outline" },
+  Messages: { active: "chatbubble", inactive: "chatbubble-outline" },
+  Profile: { active: "person-circle", inactive: "person-circle-outline" },
 };
 
 function TabIcon({ label, color, focused }) {
@@ -34,6 +34,7 @@ function TabBarLabel({ label, color }) {
         fontSize: 9,
         color,
         fontFamily: typography.fontFamilyMedium,
+        marginBottom: 10,
       }}
     >
       {label}
@@ -51,8 +52,12 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: theme.card,
           borderTopColor: theme.border,
+          height: 80,
+          paddingBottom: 18,
+          paddingTop: 8,
+        },
+        tabBarItemStyle: {
           paddingBottom: 8,
-          paddingTop: 6,
         },
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.subtleText,

@@ -1,28 +1,36 @@
 import { useEffect } from "react";
 import { Stack, useRouter } from "expo-router";
-import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 function NotificationDeepLinks() {
   const router = useRouter();
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data || {};
-      if (data.type === "message" && data.conversationId) {
-        router.push({
-          pathname: "/(app)/provider-chat",
-          params: { conversationId: String(data.conversationId) },
-        });
+    const isExpoGo =
+      Constants.appOwnership === "expo" ||
+      Constants.executionEnvironment === "storeClient";
+    if (isExpoGo) return undefined;
+
+    const Notifications = require("expo-notifications");
+    const sub = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data || {};
+        if (data.type === "message" && data.conversationId) {
+          router.push({
+            pathname: "/(app)/provider-chat",
+            params: { conversationId: String(data.conversationId) },
+          });
+        }
+        if (
+          (data.type === "appointment" || data.type === "appointment_reminder") &&
+          data.appointmentId
+        ) {
+          router.push({
+            pathname: "/(app)/appointments/[id]",
+            params: { id: String(data.appointmentId) },
+          });
+        }
       }
-      if (
-        (data.type === "appointment" || data.type === "appointment_reminder") &&
-        data.appointmentId
-      ) {
-        router.push({
-          pathname: "/(app)/appointments/[id]",
-          params: { id: String(data.appointmentId) },
-        });
-      }
-    });
+    );
     return () => sub.remove();
   }, [router]);
   return null;

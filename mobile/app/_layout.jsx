@@ -180,7 +180,11 @@ function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!auth.token) return;
-    registerPushAndSync(auth.token).catch(() => {});
+    registerPushAndSync(auth.token).catch((err) => {
+      // Keep app flow resilient, but surface push setup failures for release debugging.
+      // eslint-disable-next-line no-console
+      console.warn("[MedMap] Push registration failed:", err?.message || err);
+    });
   }, [auth.token]);
 
   useEffect(() => {

@@ -84,3 +84,7 @@ export function ShimmerAvatar({ theme, size = 44 }) {
   );
 }
 
+export default function ShimmerRoutePlaceholder() {
+  return null;
+}
+
