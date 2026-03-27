@@ -41,9 +41,19 @@ MedMap helps users quickly find and connect with nearby healthcare providers suc
 -- Create a new account or login with the details below to test the app
 
 user account
-emekaagara@gmail.com
-Ea08094333881\*
+email: emekaagara@gmail.com
+pass: Ea08094333881\*
 
 hospital/admin account
-emekaagara@gmail.com
-Ea08094333881\*
+email: beatsbyagara@gmail.com
+pass: Ea08094333881\*
+
+**Images**
+<img width="1920" height="1080" alt="6" src="https://github.com/user-attachments/assets/b2dbe854-c6f2-4181-b6de-0d47af4f0909" />
+<img width="1920" height="1080" alt="5" src="https://github.com/user-attachments/assets/8d652d42-f22a-49bb-b6c9-7a19339e8f59" />
+<img width="1920" height="1080" alt="4" src="https://github.com/user-attachments/assets/c0248c5e-0f57-485f-a1f4-95e16f28ced9" />
+<img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/07f76fbb-e107-4fc2-b314-7782a1a301c8" />
+<img width="1920" height="1080" alt="2" src="https://github.com/user-attachments/assets/cc32ab99-0478-4f27-b502-8515e3cf8b8d" />
+<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/97d6d4a4-82ff-4b3a-8b86-8400cd1ee83a" />
+
+
